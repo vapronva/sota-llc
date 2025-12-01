@@ -1,0 +1,50 @@
+---
+nameOverride: sotallc-frontend
+fullnameOverride: sotallc-frontend
+
+deployment:
+  containers:
+    - name: frontend
+      image:
+        registry: rg.gl.vprw.ru
+        repository: vapronva/sota-llc/frontend
+        tag: latest
+        pullPolicy: Always
+      ports:
+        - name: http
+          containerPort: 3000
+          protocol: TCP
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 1
+          preference:
+            matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                  - converted-conduit
+
+services:
+  - name: sotallc-frontend
+    type: ClusterIP
+    ports:
+      - name: http
+        port: 3000
+        targetPort: http
+        protocol: TCP
+
+configMap:
+  - name: caddy-config
+    labels:
+      ckic.cmld.ru/aggregate: "true"
+    data:
+      Caddyfile: |
+        sota.llc:443 {
+          import basic-compression-set
+          import default-headers-set-custom
+          header * {
+            X-Robots-Tag "index, archive, nofollow"
+          }
+          import reverse-proxy-xri-hd http://sotallc-frontend.sota-llc.svc.cluster.local:3000
+        }
