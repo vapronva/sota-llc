@@ -77,7 +77,7 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="flex items-end justify-between">
+        <div className="flex flex-col items-start gap-1 md:flex-row md:items-end md:justify-between">
           <span className="font-mono text-xs text-white/30">
             sota.llc · {new Date().getFullYear()}
           </span>
@@ -85,7 +85,7 @@ export default function Home() {
             href={displayedCredit.creditLink}
             target="_blank"
             rel="noopener noreferrer"
-            className={`pointer-events-auto font-mono text-xs text-white/15 transition-opacity duration-1000 hover:text-white/30 ${creditVisible ? "opacity-100" : "opacity-0"}`}
+            className={`pointer-events-auto transform-gpu font-mono text-[10px] text-white/15 transition-opacity duration-1000 backface-hidden hover:text-white/30 md:text-xs ${creditVisible ? "opacity-100" : "opacity-0"}`}
           >
             {displayedCredit.credit}
           </a>
