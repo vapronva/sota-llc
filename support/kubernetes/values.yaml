@@ -46,5 +46,10 @@ configMap:
           header * {
             X-Robots-Tag "index, archive, nofollow"
           }
-          import reverse-proxy-xri-hd http://sotallc-frontend.sota-llc.svc.cluster.local:3000
+          handle_path /r/* {
+            redir https://cmld.ru/sota.llc{path} permanent
+          }
+          handle {
+            import reverse-proxy-xri-hd http://sotallc-frontend.sota-llc.svc.cluster.local:3000
+          }
         }
