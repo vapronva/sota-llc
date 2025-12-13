@@ -1,7 +1,7 @@
+import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
-/** @type {import("next").NextConfig} */
-const config = {
+const config: NextConfig = {
   output: "standalone",
   reactStrictMode: true,
 };
