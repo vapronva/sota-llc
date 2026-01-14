@@ -145,12 +145,17 @@ function NoisePlane({
     slideStartTime: 0,
     transitionStartTime: 0,
   });
+  const isFirstFrameRef = useRef(true);
   const prevIndexRef = useRef(currentIndex);
   useFrame((state) => {
     if (!meshRef.current) return;
     const material = meshRef.current.material as ShaderMaterial;
     const shaderUniforms = material.uniforms as unknown as ShaderUniforms;
     const elapsed = state.clock.elapsedTime;
+    if (isFirstFrameRef.current) {
+      zoomRef.current.slideStartTime = elapsed;
+      isFirstFrameRef.current = false;
+    }
     shaderUniforms.uTime.value = elapsed;
     shaderUniforms.uResolution.value.set(size.width, size.height);
     const currentTex = shaderUniforms.uTexture.value;

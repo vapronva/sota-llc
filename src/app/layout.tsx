@@ -4,7 +4,9 @@ import { Geist_Mono } from "next/font/google";
 
 import "~/styles/globals.css";
 
-const geistMono = Geist_Mono();
+const geistMono = Geist_Mono({
+  subsets: ["latin", "cyrillic", "latin-ext"],
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://sota.llc"),

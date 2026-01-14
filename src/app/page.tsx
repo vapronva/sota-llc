@@ -49,8 +49,8 @@ export default function Home() {
       const timeout = setTimeout(() => {
         setDisplayedCredit(slides[currentIndex]!);
         setCreditVisible(true);
+        prevIndexRef.current = currentIndex;
       }, CREDIT_TRANSITION_DURATION / 2);
-      prevIndexRef.current = currentIndex;
       return () => clearTimeout(timeout);
     }
   }, [currentIndex]);
