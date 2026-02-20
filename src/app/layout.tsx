@@ -1,10 +1,10 @@
 import type React from "react";
 import type { Metadata } from "next";
-import { Geist_Mono } from "next/font/google";
+import { JetBrains_Mono } from "next/font/google";
 
 import "~/styles/globals.css";
 
-const geistMono = Geist_Mono({
+const jetBrainsMono = JetBrains_Mono({
   subsets: ["latin", "cyrillic", "latin-ext"],
 });
 
@@ -22,7 +22,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru">
-      <body className={`${geistMono.className} font-mono antialiased`}>
+      <body className={`${jetBrainsMono.className} antialiased`}>
         {children}
       </body>
     </html>

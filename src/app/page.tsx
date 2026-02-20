@@ -69,23 +69,23 @@ export default function Home() {
         className={`pointer-events-none absolute inset-0 z-10 flex flex-col justify-between p-4 transition-opacity delay-300 duration-1000 md:p-6 lg:p-8 ${isLoaded ? "opacity-100" : "opacity-0"}`}
       >
         <div className="space-y-2">
-          <h1 className="font-mono text-5xl tracking-tighter text-white md:text-7xl lg:text-8xl">
+          <h1 className="text-5xl tracking-tighter text-white md:text-7xl lg:text-8xl">
             SOTA
           </h1>
-          <p className="max-w-md font-mono text-sm tracking-wide text-white/70 md:text-base lg:text-lg">
+          <p className="max-w-md text-sm tracking-wide text-white/70 md:text-base lg:text-lg">
             Мы SOTA... потому что мы SOTA.
           </p>
         </div>
 
         <div className="flex flex-col items-start gap-1 md:flex-row md:items-end md:justify-between">
-          <span className="font-mono text-xs text-white/30">
+          <span className="text-xs text-white/30">
             sota.llc · {new Date().getFullYear()}
           </span>
           <a
             href={displayedCredit.creditLink}
             target="_blank"
             rel="noopener noreferrer"
-            className={`pointer-events-auto transform-gpu font-mono text-[10px] text-white/15 transition-opacity duration-1000 backface-hidden hover:text-white/30 md:text-xs ${creditVisible ? "opacity-100" : "opacity-0"}`}
+            className={`pointer-events-auto transform-gpu text-[10px] text-white/15 transition-opacity duration-1000 backface-hidden hover:text-white/30 md:text-xs ${creditVisible ? "opacity-100" : "opacity-0"}`}
           >
             {displayedCredit.credit}
           </a>
