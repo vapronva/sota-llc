@@ -147,7 +147,7 @@ function NoisePlane({
   });
   const isFirstFrameRef = useRef(true);
   const prevIndexRef = useRef(currentIndex);
-  useFrame((state) => {
+  useFrame((state, delta) => {
     if (!meshRef.current) return;
     const material = meshRef.current.material as ShaderMaterial;
     const shaderUniforms = material.uniforms as unknown as ShaderUniforms;
@@ -169,7 +169,8 @@ function NoisePlane({
         (nextTex.userData.aspect as number | undefined) ?? 1;
     }
     const zoomSpeed = 0.06 / 15;
-    const transitionSpeed = 0.004;
+    const transitionDurationSeconds = 250 / 60;
+    const transitionProgressPerSecond = 1 / transitionDurationSeconds;
     if (prevIndexRef.current !== currentIndex) {
       const prevIndex = prevIndexRef.current;
       shaderUniforms.uTexture.value = textures[prevIndex] ?? null;
@@ -182,23 +183,29 @@ function NoisePlane({
       prevIndexRef.current = currentIndex;
     }
     if (transitionRef.current.transitioning) {
-      transitionRef.current.progress += transitionSpeed;
-      const transitionElapsed = elapsed - zoomRef.current.transitionStartTime;
-      zoomRef.current.currentZoom =
-        zoomRef.current.currentStartZoom + transitionElapsed * zoomSpeed;
-      zoomRef.current.nextZoom =
-        zoomRef.current.nextStartZoom + transitionElapsed * zoomSpeed;
-      if (transitionRef.current.progress >= 1) {
-        transitionRef.current = { progress: 0, transitioning: false };
-        shaderUniforms.uTexture.value = textures[currentIndex] ?? null;
-        zoomRef.current.currentZoom = zoomRef.current.nextZoom;
-        zoomRef.current.currentStartZoom = zoomRef.current.currentZoom;
-        zoomRef.current.slideStartTime = elapsed;
-      }
-      shaderUniforms.uTransition.value = Math.min(
-        transitionRef.current.progress,
+      const nextProgress = Math.min(
+        transitionRef.current.progress + delta * transitionProgressPerSecond,
         1,
       );
+      transitionRef.current.progress = nextProgress;
+      const transitionElapsed = elapsed - zoomRef.current.transitionStartTime;
+      const clampedTransitionElapsed = Math.min(
+        transitionElapsed,
+        transitionDurationSeconds,
+      );
+      zoomRef.current.currentZoom =
+        zoomRef.current.currentStartZoom + clampedTransitionElapsed * zoomSpeed;
+      zoomRef.current.nextZoom = zoomRef.current.nextStartZoom;
+      shaderUniforms.uTransition.value = nextProgress;
+      if (nextProgress >= 1) {
+        transitionRef.current = { progress: 0, transitioning: false };
+        shaderUniforms.uTexture.value = textures[currentIndex] ?? null;
+        zoomRef.current.currentZoom = 1.0;
+        zoomRef.current.currentStartZoom = 1.0;
+        zoomRef.current.nextStartZoom = 1.0;
+        zoomRef.current.nextZoom = 1.0;
+        zoomRef.current.slideStartTime = elapsed;
+      }
     } else {
       shaderUniforms.uTransition.value = 0;
       const timeSinceSlideStart = elapsed - zoomRef.current.slideStartTime;
