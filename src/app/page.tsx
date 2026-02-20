@@ -46,10 +46,10 @@ export default function Home() {
   useEffect(() => {
     if (prevIndexRef.current !== currentIndex) {
       setCreditVisible(false);
+      prevIndexRef.current = currentIndex;
       const timeout = setTimeout(() => {
         setDisplayedCredit(slides[currentIndex]!);
         setCreditVisible(true);
-        prevIndexRef.current = currentIndex;
       }, CREDIT_TRANSITION_DURATION / 2);
       return () => clearTimeout(timeout);
     }
