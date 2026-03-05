@@ -75,22 +75,21 @@ function NoisePlane({
     }
   }, [loadedCount, onTextureLoaded]);
   const uniforms = useMemo(() => {
-    const initialIndex = currentIndex;
-    const nextIndex =
-      textures.length > 1 ? (initialIndex + 1) % textures.length : initialIndex;
-    const initialTexture = textures[initialIndex] ?? null;
+    const initialTexture = textures[0] ?? null;
+    const nextTexture =
+      textures.length > 1 ? (textures[1] ?? initialTexture) : initialTexture;
     return {
       uTime: { value: 0 },
       uResolution: { value: new Vector2(1, 1) },
       uTexture: { value: initialTexture },
       uTextureAspect: { value: 1 },
-      uNextTexture: { value: textures[nextIndex] ?? initialTexture },
+      uNextTexture: { value: nextTexture },
       uNextTextureAspect: { value: 1 },
       uTransition: { value: 0 },
       uZoom: { value: 1.0 },
       uNextZoom: { value: 1.0 },
     };
-  }, [textures, currentIndex]);
+  }, [textures]);
   const vertexShader = `
     varying vec2 vUv;
     void main() {
