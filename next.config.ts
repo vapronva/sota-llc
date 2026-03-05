@@ -12,11 +12,7 @@ export default withSentryConfig(config, {
   sentryUrl: "https://sentry.cumlord.ru/",
   silent: !process.env.CI,
   widenClientFileUpload: true,
-  tunnelRoute: "/mwah",
-  webpack: {
-    automaticVercelMonitors: true,
-    treeshake: {
-      removeDebugLogging: true,
-    },
+  bundleSizeOptimizations: {
+    excludeDebugStatements: true,
   },
 });

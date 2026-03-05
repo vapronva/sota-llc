@@ -41,6 +41,7 @@ function NoisePlane({
   const meshRef = useRef<Mesh>(null);
   const { viewport, size } = useThree();
   const [loadedCount, setLoadedCount] = useState(0);
+  const prevIndexRef = useRef(currentIndex);
   const textures = useMemo(() => {
     const loader = new TextureLoader();
     loader.crossOrigin = "anonymous";
@@ -73,20 +74,23 @@ function NoisePlane({
       onTextureLoaded();
     }
   }, [loadedCount, onTextureLoaded]);
-  const uniforms = useMemo(
-    () => ({
+  const uniforms = useMemo(() => {
+    const initialIndex = currentIndex;
+    const nextIndex =
+      textures.length > 1 ? (initialIndex + 1) % textures.length : initialIndex;
+    const initialTexture = textures[initialIndex] ?? null;
+    return {
       uTime: { value: 0 },
-      uResolution: { value: new Vector2(size.width, size.height) },
-      uTexture: { value: textures[0] },
+      uResolution: { value: new Vector2(1, 1) },
+      uTexture: { value: initialTexture },
       uTextureAspect: { value: 1 },
-      uNextTexture: { value: textures[1] ?? textures[0] },
+      uNextTexture: { value: textures[nextIndex] ?? initialTexture },
       uNextTextureAspect: { value: 1 },
       uTransition: { value: 0 },
       uZoom: { value: 1.0 },
       uNextZoom: { value: 1.0 },
-    }),
-    [textures, size.width, size.height],
-  );
+    };
+  }, [textures, currentIndex]);
   const vertexShader = `
     varying vec2 vUv;
     void main() {
@@ -146,7 +150,6 @@ function NoisePlane({
     transitionStartTime: 0,
   });
   const isFirstFrameRef = useRef(true);
-  const prevIndexRef = useRef(currentIndex);
   useFrame((state, delta) => {
     if (!meshRef.current) return;
     const material = meshRef.current.material as ShaderMaterial;
@@ -215,7 +218,6 @@ function NoisePlane({
     shaderUniforms.uZoom.value = zoomRef.current.currentZoom;
     shaderUniforms.uNextZoom.value = zoomRef.current.nextZoom;
   });
-
   return (
     <mesh ref={meshRef} scale={[viewport.width, viewport.height, 1]}>
       <planeGeometry args={[1, 1]} />
