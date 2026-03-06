@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 import { NoiseScene, type SlideData } from "~/components/noise-scene";
 
@@ -39,6 +39,11 @@ export default function Home() {
   const [creditVisible, setCreditVisible] = useState(true);
   const currentIndexRef = useRef(0);
   const creditTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleTextureLoaded = useCallback(() => setIsLoaded(true), []);
+  const handleAllTexturesLoaded = useCallback(
+    () => setAllTexturesLoaded(true),
+    [],
+  );
   useEffect(() => {
     if (!allTexturesLoaded || slides.length <= 1) return;
     const interval = setInterval(() => {
@@ -71,8 +76,8 @@ export default function Home() {
           currentIndex={currentIndex}
           slideDurationMs={SLIDE_DURATION}
           transitionDurationMs={TRANSITION_DURATION}
-          onTextureLoaded={() => setIsLoaded(true)}
-          onAllTexturesLoaded={() => setAllTexturesLoaded(true)}
+          onTextureLoaded={handleTextureLoaded}
+          onAllTexturesLoaded={handleAllTexturesLoaded}
         />
       </div>
       <div
