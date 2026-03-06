@@ -2324,11 +2324,11 @@ packages:
         tarball: https://registry.npmjs.org/buffer/-/buffer-6.0.3.tgz,
       }
 
-  caniuse-lite@1.0.30001776:
+  caniuse-lite@1.0.30001777:
     resolution:
       {
-        integrity: sha512-sg01JDPzZ9jGshqKSckOQthXnYwOEP50jeVFhaSFbZcOy05TiuuaffDOfcwtCisJ9kNQuLBFibYywv2Bgm9osw==,
-        tarball: https://registry.npmjs.org/caniuse-lite/-/caniuse-lite-1.0.30001776.tgz,
+        integrity: sha512-tmN+fJxroPndC74efCdp12j+0rk0RHwV5Jwa1zWaFVyw2ZxAuPeG8ZgWC3Wz7uSjT3qMRQ5XHZ4COgQmsCMJAQ==,
+        tarball: https://registry.npmjs.org/caniuse-lite/-/caniuse-lite-1.0.30001777.tgz,
       }
 
   chrome-trace-event@1.0.4:
@@ -5278,7 +5278,7 @@ snapshots:
   browserslist@4.28.1:
     dependencies:
       baseline-browser-mapping: 2.10.0
-      caniuse-lite: 1.0.30001776
+      caniuse-lite: 1.0.30001777
       electron-to-chromium: 1.5.307
       node-releases: 2.0.36
       update-browserslist-db: 1.2.3(browserslist@4.28.1)
@@ -5290,7 +5290,7 @@ snapshots:
       base64-js: 1.5.1
       ieee754: 1.2.1
 
-  caniuse-lite@1.0.30001776: {}
+  caniuse-lite@1.0.30001777: {}
 
   chrome-trace-event@1.0.4: {}
 
@@ -5681,7 +5681,7 @@ snapshots:
       "@next/env": 16.1.6
       "@swc/helpers": 0.5.15
       baseline-browser-mapping: 2.10.0
-      caniuse-lite: 1.0.30001776
+      caniuse-lite: 1.0.30001777
       postcss: 8.4.31
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
