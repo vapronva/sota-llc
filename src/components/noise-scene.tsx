@@ -46,6 +46,11 @@ function NoisePlane({
   const prevIndexRef = useRef(currentIndex);
   const hasInitialLoadSignalRef = useRef(false);
   const hasAllLoadedSignalRef = useRef(false);
+  useEffect(() => {
+    setLoadedCount(0);
+    hasInitialLoadSignalRef.current = false;
+    hasAllLoadedSignalRef.current = false;
+  }, [slides]);
   const textures = useMemo(() => {
     const loader = new TextureLoader();
     const renderer = gl as typeof gl & {
