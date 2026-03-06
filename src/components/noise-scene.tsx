@@ -46,12 +46,20 @@ function NoisePlane({
 }: NoisePlaneProps) {
   const meshRef = useRef<Mesh>(null);
   const { viewport, size, gl } = useThree();
-  const loadBatchToken = useMemo(
-    () => Symbol(`slides-load-batch:${slides.length}`),
+  const slidesContentKey = useMemo(
+    () => JSON.stringify(slides.map((slide) => slide.url)),
     [slides],
   );
+  const slideUrls = useMemo(
+    () => JSON.parse(slidesContentKey) as string[],
+    [slidesContentKey],
+  );
+  const loadBatchToken = useMemo(
+    () => `slides-load-batch:${slidesContentKey}`,
+    [slidesContentKey],
+  );
   const [loadedCountsByBatch, setLoadedCountsByBatch] = useState<
-    Map<symbol, number>
+    Map<string, number>
   >(() => new Map());
   const loadedCount = loadedCountsByBatch.get(loadBatchToken) ?? 0;
   const prevIndexRef = useRef(currentIndex);
@@ -60,19 +68,6 @@ function NoisePlane({
   useEffect(() => {
     hasInitialLoadSignalRef.current = false;
     hasAllLoadedSignalRef.current = false;
-    setLoadedCountsByBatch((countsByBatch) => {
-      if (countsByBatch.size === 0) {
-        return countsByBatch;
-      }
-      const currentBatchCount = countsByBatch.get(loadBatchToken);
-      if (currentBatchCount === undefined) {
-        return new Map();
-      }
-      if (countsByBatch.size === 1 && countsByBatch.has(loadBatchToken)) {
-        return countsByBatch;
-      }
-      return new Map([[loadBatchToken, currentBatchCount]]);
-    });
   }, [loadBatchToken]);
   const textures = useMemo(() => {
     const loader = new TextureLoader();
@@ -87,9 +82,9 @@ function NoisePlane({
       });
     };
     loader.crossOrigin = "anonymous";
-    return slides.map((slide) => {
+    return slideUrls.map((url) => {
       const tex = loader.load(
-        slide.url,
+        url,
         (t) => {
           t.userData.aspect = t.image.width / t.image.height;
           renderer.initTexture?.(t);
@@ -98,7 +93,7 @@ function NoisePlane({
         undefined,
         (error) => {
           console.error("Failed to load slide texture", {
-            url: slide.url,
+            url,
             error,
           });
           incrementLoadedCount();
@@ -109,7 +104,7 @@ function NoisePlane({
       tex.userData = { aspect: 1 };
       return tex;
     });
-  }, [gl, loadBatchToken, slides]);
+  }, [gl, loadBatchToken, slideUrls]);
   useEffect(() => {
     if (loadedCount >= 1 && !hasInitialLoadSignalRef.current) {
       hasInitialLoadSignalRef.current = true;
@@ -118,16 +113,16 @@ function NoisePlane({
   }, [loadedCount, onTextureLoaded]);
   useEffect(() => {
     if (
-      slides.length > 0 &&
-      loadedCount >= slides.length &&
+      slideUrls.length > 0 &&
+      loadedCount >= slideUrls.length &&
       !hasAllLoadedSignalRef.current
     ) {
       hasAllLoadedSignalRef.current = true;
       onAllTexturesLoaded();
     }
-  }, [loadedCount, onAllTexturesLoaded, slides.length]);
+  }, [loadedCount, onAllTexturesLoaded, slideUrls.length]);
   useEffect(() => {
-    if (slides.length === 0) {
+    if (slideUrls.length === 0) {
       return;
     }
     if (hasInitialLoadSignalRef.current) {
@@ -142,7 +137,7 @@ function NoisePlane({
     return () => {
       clearTimeout(timeout);
     };
-  }, [onTextureLoaded, slides]);
+  }, [loadBatchToken, onTextureLoaded, slideUrls.length]);
   useEffect(
     () => () => {
       textures.forEach((texture) => {
