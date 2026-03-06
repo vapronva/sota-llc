@@ -1,13 +1,13 @@
 import nextPlugin from "@next/eslint-plugin-next";
+import reactHooks from "eslint-plugin-react-hooks";
 import tseslint from "typescript-eslint";
-
-const nextCoreWebVitals = nextPlugin.configs["core-web-vitals"];
 
 export default tseslint.config(
   {
     ignores: [".next", "next-env.d.ts"],
   },
-  nextCoreWebVitals,
+  nextPlugin.configs["core-web-vitals"],
+  reactHooks.configs.flat["recommended-latest"],
   {
     files: ["**/*.ts", "**/*.tsx"],
     extends: [

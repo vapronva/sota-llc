@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 import { NoiseScene, type SlideData } from "~/components/noise-scene";
 
@@ -28,32 +28,44 @@ const slides: SlideData[] = [
 ];
 
 const SLIDE_DURATION = 7500;
+const TRANSITION_DURATION = 3500;
 const CREDIT_TRANSITION_DURATION = 2000;
 
 export default function Home() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [allTexturesLoaded, setAllTexturesLoaded] = useState(false);
   const [displayedCredit, setDisplayedCredit] = useState(slides[0]!);
   const [creditVisible, setCreditVisible] = useState(true);
-  const prevIndexRef = useRef(currentIndex);
+  const currentIndexRef = useRef(0);
+  const creditTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleTextureLoaded = useCallback(() => setIsLoaded(true), []);
+  const handleAllTexturesLoaded = useCallback(
+    () => setAllTexturesLoaded(true),
+    [],
+  );
   useEffect(() => {
-    if (slides.length <= 1) return;
+    if (!allTexturesLoaded || slides.length <= 1) return;
     const interval = setInterval(() => {
-      setCurrentIndex((i) => (i + 1) % slides.length);
-    }, SLIDE_DURATION);
-    return () => clearInterval(interval);
-  }, []);
-  useEffect(() => {
-    if (prevIndexRef.current !== currentIndex) {
+      const nextIndex = (currentIndexRef.current + 1) % slides.length;
+      currentIndexRef.current = nextIndex;
       setCreditVisible(false);
-      prevIndexRef.current = currentIndex;
-      const timeout = setTimeout(() => {
-        setDisplayedCredit(slides[currentIndex]!);
+      setCurrentIndex(nextIndex);
+      if (creditTimeoutRef.current) {
+        clearTimeout(creditTimeoutRef.current);
+      }
+      creditTimeoutRef.current = setTimeout(() => {
+        setDisplayedCredit(slides[nextIndex]!);
         setCreditVisible(true);
       }, CREDIT_TRANSITION_DURATION / 2);
-      return () => clearTimeout(timeout);
-    }
-  }, [currentIndex]);
+    }, SLIDE_DURATION);
+    return () => {
+      clearInterval(interval);
+      if (creditTimeoutRef.current) {
+        clearTimeout(creditTimeoutRef.current);
+      }
+    };
+  }, [allTexturesLoaded]);
   return (
     <main className="relative h-screen w-full overflow-hidden bg-[#0a0a0a]">
       <div
@@ -62,7 +74,10 @@ export default function Home() {
         <NoiseScene
           slides={slides}
           currentIndex={currentIndex}
-          onTextureLoaded={() => setIsLoaded(true)}
+          slideDurationMs={SLIDE_DURATION}
+          transitionDurationMs={TRANSITION_DURATION}
+          onTextureLoaded={handleTextureLoaded}
+          onAllTexturesLoaded={handleAllTexturesLoaded}
         />
       </div>
       <div
@@ -76,7 +91,6 @@ export default function Home() {
             Мы SOTA... потому что мы SOTA.
           </p>
         </div>
-
         <div className="flex flex-col items-start gap-1 md:flex-row md:items-end md:justify-between">
           <span className="text-xs text-white/30">
             sota.llc · {new Date().getFullYear()}
