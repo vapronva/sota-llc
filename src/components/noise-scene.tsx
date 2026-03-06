@@ -98,7 +98,9 @@ function NoisePlane({
   }, [onTextureLoaded]);
   useEffect(
     () => () => {
-      textures.forEach((texture) => texture.dispose());
+      textures.forEach((texture) => {
+        texture.dispose();
+      });
     },
     [textures],
   );
