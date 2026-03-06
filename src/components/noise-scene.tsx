@@ -55,7 +55,7 @@ function NoisePlane({
     [slidesContentKey],
   );
   const loadBatchToken = useMemo(
-    () => `slides-load-batch:${slidesContentKey}`,
+    () => `slides-load-batch:${slidesContentKey}:${crypto.randomUUID()}`,
     [slidesContentKey],
   );
   const [loadedCountsByBatch, setLoadedCountsByBatch] = useState<
@@ -112,17 +112,24 @@ function NoisePlane({
     }
   }, [loadedCount, onTextureLoaded]);
   useEffect(() => {
-    if (
-      slideUrls.length > 0 &&
-      loadedCount >= slideUrls.length &&
-      !hasAllLoadedSignalRef.current
-    ) {
+    if (slideUrls.length === 0) {
+      if (!hasAllLoadedSignalRef.current) {
+        hasAllLoadedSignalRef.current = true;
+        onAllTexturesLoaded();
+      }
+      return;
+    }
+    if (loadedCount >= slideUrls.length && !hasAllLoadedSignalRef.current) {
       hasAllLoadedSignalRef.current = true;
       onAllTexturesLoaded();
     }
   }, [loadedCount, onAllTexturesLoaded, slideUrls.length]);
   useEffect(() => {
     if (slideUrls.length === 0) {
+      if (!hasAllLoadedSignalRef.current) {
+        hasAllLoadedSignalRef.current = true;
+        onAllTexturesLoaded();
+      }
       return;
     }
     if (hasInitialLoadSignalRef.current) {
@@ -137,7 +144,7 @@ function NoisePlane({
     return () => {
       clearTimeout(timeout);
     };
-  }, [loadBatchToken, onTextureLoaded, slideUrls.length]);
+  }, [loadBatchToken, onAllTexturesLoaded, onTextureLoaded, slideUrls.length]);
   useEffect(
     () => () => {
       textures.forEach((texture) => {
