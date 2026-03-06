@@ -31,25 +31,33 @@ interface NoisePlaneProps {
   slides: SlideData[];
   currentIndex: number;
   onTextureLoaded: () => void;
+  onAllTexturesLoaded: () => void;
 }
 
 function NoisePlane({
   slides,
   currentIndex,
   onTextureLoaded,
+  onAllTexturesLoaded,
 }: NoisePlaneProps) {
   const meshRef = useRef<Mesh>(null);
-  const { viewport, size } = useThree();
+  const { viewport, size, gl } = useThree();
   const [loadedCount, setLoadedCount] = useState(0);
   const prevIndexRef = useRef(currentIndex);
+  const hasInitialLoadSignalRef = useRef(false);
+  const hasAllLoadedSignalRef = useRef(false);
   const textures = useMemo(() => {
     const loader = new TextureLoader();
+    const renderer = gl as typeof gl & {
+      initTexture?: (texture: Texture) => void;
+    };
     loader.crossOrigin = "anonymous";
     return slides.map((slide) => {
       const tex = loader.load(
         slide.url,
         (t) => {
           t.userData.aspect = t.image.width / t.image.height;
+          renderer.initTexture?.(t);
           setLoadedCount((c) => c + 1);
         },
         undefined,
@@ -62,18 +70,38 @@ function NoisePlane({
       tex.userData = { aspect: 1 };
       return tex;
     });
-  }, [slides]);
+  }, [gl, slides]);
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      onTextureLoaded();
-    }, 3000);
-    return () => clearTimeout(timeout);
-  }, [onTextureLoaded]);
-  useEffect(() => {
-    if (loadedCount >= 1) {
+    if (loadedCount >= 1 && !hasInitialLoadSignalRef.current) {
+      hasInitialLoadSignalRef.current = true;
       onTextureLoaded();
     }
   }, [loadedCount, onTextureLoaded]);
+  useEffect(() => {
+    if (
+      slides.length > 0 &&
+      loadedCount >= slides.length &&
+      !hasAllLoadedSignalRef.current
+    ) {
+      hasAllLoadedSignalRef.current = true;
+      onAllTexturesLoaded();
+    }
+  }, [loadedCount, onAllTexturesLoaded, slides.length]);
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (!hasInitialLoadSignalRef.current) {
+        hasInitialLoadSignalRef.current = true;
+        onTextureLoaded();
+      }
+    }, 3000);
+    return () => clearTimeout(timeout);
+  }, [onTextureLoaded]);
+  useEffect(
+    () => () => {
+      textures.forEach((texture) => texture.dispose());
+    },
+    [textures],
+  );
   const uniforms = useMemo(() => {
     const initialTexture = textures[0] ?? null;
     const nextTexture =
@@ -233,12 +261,14 @@ interface NoiseSceneProps {
   slides: SlideData[];
   currentIndex: number;
   onTextureLoaded: () => void;
+  onAllTexturesLoaded: () => void;
 }
 
 export function NoiseScene({
   slides,
   currentIndex,
   onTextureLoaded,
+  onAllTexturesLoaded,
 }: NoiseSceneProps) {
   return (
     <Canvas
@@ -251,6 +281,7 @@ export function NoiseScene({
         slides={slides}
         currentIndex={currentIndex}
         onTextureLoaded={onTextureLoaded}
+        onAllTexturesLoaded={onAllTexturesLoaded}
       />
     </Canvas>
   );
