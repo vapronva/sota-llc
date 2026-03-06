@@ -6,7 +6,7 @@ deployment:
   containers:
     - name: frontend
       image:
-        registry: rg.gl.vprw.ru
+        registry: docker.horse
         repository: vapronva/sota-llc/frontend
         tag: latest
         pullPolicy: Always

@@ -11,13 +11,13 @@ helmDefaults:
 
 repositories:
   - name: cmld
-    url: https://gl.vprw.ru/api/v4/projects/149/packages/helm/stable
+    url: https://git.horse/api/v4/projects/149/packages/helm/stable
 
 releases:
   - name: sotallc-frontend
     namespace: sota-llc
     chart: cmld/app-release
-    version: 2.4.0
+    version: 2.5.0
     values:
       - values.yaml
     set:
