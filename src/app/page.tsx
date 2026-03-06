@@ -28,6 +28,7 @@ const slides: SlideData[] = [
 ];
 
 const SLIDE_DURATION = 7500;
+const TRANSITION_DURATION = 3500;
 const CREDIT_TRANSITION_DURATION = 2000;
 
 export default function Home() {
@@ -68,6 +69,8 @@ export default function Home() {
         <NoiseScene
           slides={slides}
           currentIndex={currentIndex}
+          slideDurationMs={SLIDE_DURATION}
+          transitionDurationMs={TRANSITION_DURATION}
           onTextureLoaded={() => setIsLoaded(true)}
           onAllTexturesLoaded={() => setAllTexturesLoaded(true)}
         />

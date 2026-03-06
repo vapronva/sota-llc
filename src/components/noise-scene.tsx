@@ -30,6 +30,8 @@ export interface SlideData {
 interface NoisePlaneProps {
   slides: SlideData[];
   currentIndex: number;
+  slideDurationMs: number;
+  transitionDurationMs: number;
   onTextureLoaded: () => void;
   onAllTexturesLoaded: () => void;
 }
@@ -37,6 +39,8 @@ interface NoisePlaneProps {
 function NoisePlane({
   slides,
   currentIndex,
+  slideDurationMs,
+  transitionDurationMs,
   onTextureLoaded,
   onAllTexturesLoaded,
 }: NoisePlaneProps) {
@@ -222,7 +226,14 @@ function NoisePlane({
     transitionStartTime: 0,
   });
   const isFirstFrameRef = useRef(true);
-  useFrame((state, delta) => {
+  const transitionDurationSeconds = Math.max(transitionDurationMs / 1000, 0.1);
+  const slideDurationSeconds = Math.max(
+    slideDurationMs / 1000,
+    transitionDurationSeconds,
+  );
+  const targetZoomPerSlide = 1.08;
+  const zoomSpeed = (targetZoomPerSlide - 1) / slideDurationSeconds;
+  useFrame((state) => {
     if (!meshRef.current) return;
     const material = meshRef.current.material as ShaderMaterial;
     const shaderUniforms = material.uniforms as unknown as ShaderUniforms;
@@ -243,9 +254,6 @@ function NoisePlane({
       shaderUniforms.uNextTextureAspect.value =
         (nextTex.userData.aspect as number | undefined) ?? 1;
     }
-    const zoomSpeed = 0.06 / 15;
-    const transitionDurationSeconds = 250 / 60;
-    const transitionProgressPerSecond = 1 / transitionDurationSeconds;
     if (prevIndexRef.current !== currentIndex) {
       const prevIndex = prevIndexRef.current;
       shaderUniforms.uTexture.value = textures[prevIndex] ?? null;
@@ -258,27 +266,32 @@ function NoisePlane({
       prevIndexRef.current = currentIndex;
     }
     if (transitionRef.current.transitioning) {
-      const nextProgress = Math.min(
-        transitionRef.current.progress + delta * transitionProgressPerSecond,
-        1,
-      );
-      transitionRef.current.progress = nextProgress;
       const transitionElapsed = elapsed - zoomRef.current.transitionStartTime;
       const clampedTransitionElapsed = Math.min(
         transitionElapsed,
         transitionDurationSeconds,
       );
+      const nextProgress = Math.min(
+        clampedTransitionElapsed / transitionDurationSeconds,
+        1,
+      );
+      transitionRef.current.progress = nextProgress;
       zoomRef.current.currentZoom =
         zoomRef.current.currentStartZoom + clampedTransitionElapsed * zoomSpeed;
-      zoomRef.current.nextZoom = zoomRef.current.nextStartZoom;
+      zoomRef.current.nextZoom =
+        zoomRef.current.nextStartZoom + clampedTransitionElapsed * zoomSpeed;
       shaderUniforms.uTransition.value = nextProgress;
       if (nextProgress >= 1) {
         transitionRef.current = { progress: 0, transitioning: false };
         shaderUniforms.uTexture.value = textures[currentIndex] ?? null;
-        zoomRef.current.currentZoom = 1.0;
-        zoomRef.current.currentStartZoom = 1.0;
-        zoomRef.current.nextStartZoom = 1.0;
-        zoomRef.current.nextZoom = 1.0;
+        const nextTextureIndex =
+          textures.length > 0 ? (currentIndex + 1) % textures.length : 0;
+        shaderUniforms.uNextTexture.value =
+          textures[nextTextureIndex] ?? shaderUniforms.uTexture.value;
+        zoomRef.current.currentZoom = zoomRef.current.nextZoom;
+        zoomRef.current.currentStartZoom = zoomRef.current.currentZoom;
+        zoomRef.current.nextStartZoom = zoomRef.current.currentZoom;
+        zoomRef.current.nextZoom = zoomRef.current.currentZoom;
         zoomRef.current.slideStartTime = elapsed;
       }
     } else {
@@ -305,6 +318,8 @@ function NoisePlane({
 interface NoiseSceneProps {
   slides: SlideData[];
   currentIndex: number;
+  slideDurationMs?: number;
+  transitionDurationMs?: number;
   onTextureLoaded: () => void;
   onAllTexturesLoaded: () => void;
 }
@@ -312,6 +327,8 @@ interface NoiseSceneProps {
 export function NoiseScene({
   slides,
   currentIndex,
+  slideDurationMs = 7500,
+  transitionDurationMs = 3000,
   onTextureLoaded,
   onAllTexturesLoaded,
 }: NoiseSceneProps) {
@@ -325,6 +342,8 @@ export function NoiseScene({
       <NoisePlane
         slides={slides}
         currentIndex={currentIndex}
+        slideDurationMs={slideDurationMs}
+        transitionDurationMs={transitionDurationMs}
         onTextureLoaded={onTextureLoaded}
         onAllTexturesLoaded={onAllTexturesLoaded}
       />
