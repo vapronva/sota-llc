@@ -139,7 +139,15 @@ function NoisePlane({
           t.userData.aspect = t.image.width / t.image.height;
           try {
             renderer.initTexture?.(t);
-          } catch {}
+          } catch (err) {
+            if (process.env.NODE_ENV !== "production") {
+              console.warn(
+                "[NoiseScene] renderer.initTexture failed",
+                { url, textureId: t.id, renderer: renderer.constructor.name },
+                err,
+              );
+            }
+          }
           incrementLoadedCount();
         },
         undefined,
