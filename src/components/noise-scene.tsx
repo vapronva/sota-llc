@@ -56,6 +56,19 @@ function NoisePlane({
   useEffect(() => {
     hasInitialLoadSignalRef.current = false;
     hasAllLoadedSignalRef.current = false;
+    setLoadedCountsByBatch((countsByBatch) => {
+      if (countsByBatch.size === 0) {
+        return countsByBatch;
+      }
+      const currentBatchCount = countsByBatch.get(loadBatchToken);
+      if (currentBatchCount === undefined) {
+        return new Map();
+      }
+      if (countsByBatch.size === 1 && countsByBatch.has(loadBatchToken)) {
+        return countsByBatch;
+      }
+      return new Map([[loadBatchToken, currentBatchCount]]);
+    });
   }, [loadBatchToken]);
   const textures = useMemo(() => {
     const loader = new TextureLoader();
@@ -79,7 +92,11 @@ function NoisePlane({
           incrementLoadedCount();
         },
         undefined,
-        () => {
+        (error) => {
+          console.error("Failed to load slide texture", {
+            url: slide.url,
+            error,
+          });
           incrementLoadedCount();
         },
       );
@@ -107,6 +124,9 @@ function NoisePlane({
   }, [loadedCount, onAllTexturesLoaded, slides.length]);
   useEffect(() => {
     if (slides.length === 0) {
+      return;
+    }
+    if (hasInitialLoadSignalRef.current) {
       return;
     }
     const timeout = setTimeout(() => {
