@@ -46,13 +46,10 @@ function NoisePlane({
 }: NoisePlaneProps) {
   const meshRef = useRef<Mesh>(null);
   const { viewport, size, gl } = useThree();
+  const slideUrls = useMemo(() => slides.map((slide) => slide.url), [slides]);
   const slidesContentKey = useMemo(
-    () => JSON.stringify(slides.map((slide) => slide.url)),
-    [slides],
-  );
-  const slideUrls = useMemo(
-    () => JSON.parse(slidesContentKey) as string[],
-    [slidesContentKey],
+    () => JSON.stringify(slideUrls),
+    [slideUrls],
   );
   const loadBatchToken = useMemo(
     () => `slides-load-batch:${slidesContentKey}:${crypto.randomUUID()}`,
@@ -76,8 +73,8 @@ function NoisePlane({
     };
     const incrementLoadedCount = () => {
       setLoadedCountsByBatch((countsByBatch) => {
-        const next = new Map(countsByBatch);
-        next.set(loadBatchToken, (next.get(loadBatchToken) ?? 0) + 1);
+        const next = new Map<string, number>();
+        next.set(loadBatchToken, (countsByBatch.get(loadBatchToken) ?? 0) + 1);
         return next;
       });
     };
@@ -113,6 +110,10 @@ function NoisePlane({
   }, [loadedCount, onTextureLoaded]);
   useEffect(() => {
     if (slideUrls.length === 0) {
+      if (!hasInitialLoadSignalRef.current) {
+        hasInitialLoadSignalRef.current = true;
+        onTextureLoaded();
+      }
       if (!hasAllLoadedSignalRef.current) {
         hasAllLoadedSignalRef.current = true;
         onAllTexturesLoaded();
@@ -123,16 +124,9 @@ function NoisePlane({
       hasAllLoadedSignalRef.current = true;
       onAllTexturesLoaded();
     }
-  }, [loadedCount, onAllTexturesLoaded, slideUrls.length]);
+  }, [loadedCount, onAllTexturesLoaded, onTextureLoaded, slideUrls.length]);
   useEffect(() => {
-    if (slideUrls.length === 0) {
-      if (!hasAllLoadedSignalRef.current) {
-        hasAllLoadedSignalRef.current = true;
-        onAllTexturesLoaded();
-      }
-      return;
-    }
-    if (hasInitialLoadSignalRef.current) {
+    if (slideUrls.length === 0 || hasInitialLoadSignalRef.current) {
       return;
     }
     const timeout = setTimeout(() => {
@@ -144,7 +138,7 @@ function NoisePlane({
     return () => {
       clearTimeout(timeout);
     };
-  }, [loadBatchToken, onAllTexturesLoaded, onTextureLoaded, slideUrls.length]);
+  }, [loadBatchToken, onTextureLoaded, slideUrls.length]);
   useEffect(
     () => () => {
       textures.forEach((texture) => {
@@ -334,6 +328,10 @@ export function NoiseScene({
   onTextureLoaded,
   onAllTexturesLoaded,
 }: NoiseSceneProps) {
+  const slidesContentKey = useMemo(
+    () => JSON.stringify(slides.map((slide) => slide.url)),
+    [slides],
+  );
   return (
     <Canvas
       className="absolute inset-0"
@@ -342,6 +340,7 @@ export function NoiseScene({
       gl={{ antialias: false }}
     >
       <NoisePlane
+        key={slidesContentKey}
         slides={slides}
         currentIndex={currentIndex}
         slideDurationMs={slideDurationMs}
