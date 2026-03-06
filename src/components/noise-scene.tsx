@@ -42,19 +42,32 @@ function NoisePlane({
 }: NoisePlaneProps) {
   const meshRef = useRef<Mesh>(null);
   const { viewport, size, gl } = useThree();
-  const [loadedCount, setLoadedCount] = useState(0);
+  const loadBatchToken = useMemo(
+    () => Symbol(`slides-load-batch:${slides.length}`),
+    [slides],
+  );
+  const [loadedCountsByBatch, setLoadedCountsByBatch] = useState<
+    Map<symbol, number>
+  >(() => new Map());
+  const loadedCount = loadedCountsByBatch.get(loadBatchToken) ?? 0;
   const prevIndexRef = useRef(currentIndex);
   const hasInitialLoadSignalRef = useRef(false);
   const hasAllLoadedSignalRef = useRef(false);
   useEffect(() => {
-    setLoadedCount(0);
     hasInitialLoadSignalRef.current = false;
     hasAllLoadedSignalRef.current = false;
-  }, [slides]);
+  }, [loadBatchToken]);
   const textures = useMemo(() => {
     const loader = new TextureLoader();
     const renderer = gl as typeof gl & {
       initTexture?: (texture: Texture) => void;
+    };
+    const incrementLoadedCount = () => {
+      setLoadedCountsByBatch((countsByBatch) => {
+        const next = new Map(countsByBatch);
+        next.set(loadBatchToken, (next.get(loadBatchToken) ?? 0) + 1);
+        return next;
+      });
     };
     loader.crossOrigin = "anonymous";
     return slides.map((slide) => {
@@ -63,11 +76,11 @@ function NoisePlane({
         (t) => {
           t.userData.aspect = t.image.width / t.image.height;
           renderer.initTexture?.(t);
-          setLoadedCount((c) => c + 1);
+          incrementLoadedCount();
         },
         undefined,
         () => {
-          setLoadedCount((c) => c + 1);
+          incrementLoadedCount();
         },
       );
       tex.minFilter = LinearFilter;
@@ -75,7 +88,7 @@ function NoisePlane({
       tex.userData = { aspect: 1 };
       return tex;
     });
-  }, [gl, slides]);
+  }, [gl, loadBatchToken, slides]);
   useEffect(() => {
     if (loadedCount >= 1 && !hasInitialLoadSignalRef.current) {
       hasInitialLoadSignalRef.current = true;
@@ -93,14 +106,19 @@ function NoisePlane({
     }
   }, [loadedCount, onAllTexturesLoaded, slides.length]);
   useEffect(() => {
+    if (slides.length === 0) {
+      return;
+    }
     const timeout = setTimeout(() => {
       if (!hasInitialLoadSignalRef.current) {
         hasInitialLoadSignalRef.current = true;
         onTextureLoaded();
       }
     }, 3000);
-    return () => clearTimeout(timeout);
-  }, [onTextureLoaded]);
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [onTextureLoaded, slides]);
   useEffect(
     () => () => {
       textures.forEach((texture) => {
