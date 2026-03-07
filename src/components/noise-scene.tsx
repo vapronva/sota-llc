@@ -223,14 +223,12 @@ function NoisePlane({
   );
   const uniforms = useMemo(() => {
     const initialTexture = textures[0] ?? null;
-    const nextTexture =
-      textures.length > 1 ? (textures[1] ?? initialTexture) : initialTexture;
     const u: ShaderUniforms = {
       uTime: { value: 0 },
       uResolution: { value: new Vector2(1, 1) },
       uTexture: { value: initialTexture },
       uTextureAspect: { value: 1 },
-      uNextTexture: { value: nextTexture },
+      uNextTexture: { value: initialTexture },
       uNextTextureAspect: { value: 1 },
       uTransition: { value: 0 },
       uZoom: { value: 1.0 },
@@ -258,6 +256,8 @@ function NoisePlane({
   );
   const targetZoomPerSlide = 1.08;
   const zoomSpeed = (targetZoomPerSlide - 1) / slideDurationSeconds;
+  const getTextureAspect = (texture: Texture | null): number =>
+    (texture?.userData?.aspect as number | undefined) ?? 1;
   useFrame((state) => {
     const u = uniformsRef.current;
     if (!meshRef.current || !u) return;
@@ -270,14 +270,8 @@ function NoisePlane({
     u.uResolution.value.set(size.width, size.height);
     const currentTex = u.uTexture.value;
     const nextTex = u.uNextTexture.value;
-    if (currentTex?.userData) {
-      u.uTextureAspect.value =
-        (currentTex.userData.aspect as number | undefined) ?? 1;
-    }
-    if (nextTex?.userData) {
-      u.uNextTextureAspect.value =
-        (nextTex.userData.aspect as number | undefined) ?? 1;
-    }
+    u.uTextureAspect.value = getTextureAspect(currentTex);
+    u.uNextTextureAspect.value = getTextureAspect(nextTex);
     const clampedIndex =
       textures.length > 0
         ? Math.max(0, Math.min(currentIndex, textures.length - 1))
@@ -287,8 +281,12 @@ function NoisePlane({
         textures.length > 0
           ? Math.max(0, Math.min(prevIndexRef.current, textures.length - 1))
           : 0;
-      u.uTexture.value = textures[prevIndex] ?? null;
-      u.uNextTexture.value = textures[clampedIndex] ?? null;
+      const fromTexture = textures[prevIndex] ?? null;
+      const toTexture = textures[clampedIndex] ?? null;
+      u.uTexture.value = fromTexture;
+      u.uTextureAspect.value = getTextureAspect(fromTexture);
+      u.uNextTexture.value = toTexture;
+      u.uNextTextureAspect.value = getTextureAspect(toTexture);
       transitionRef.current = { progress: 0, transitioning: true };
       zoomRef.current.currentStartZoom = zoomRef.current.currentZoom;
       zoomRef.current.nextStartZoom = 1.0;
@@ -314,10 +312,12 @@ function NoisePlane({
       u.uTransition.value = nextProgress;
       if (nextProgress >= 1) {
         transitionRef.current = { progress: 0, transitioning: false };
-        u.uTexture.value = textures[clampedIndex] ?? null;
-        const nextTextureIndex =
-          textures.length > 0 ? (clampedIndex + 1) % textures.length : 0;
-        u.uNextTexture.value = textures[nextTextureIndex] ?? u.uTexture.value;
+        const settledTexture = textures[clampedIndex] ?? null;
+        const settledAspect = getTextureAspect(settledTexture);
+        u.uTexture.value = settledTexture;
+        u.uTextureAspect.value = settledAspect;
+        u.uNextTexture.value = settledTexture;
+        u.uNextTextureAspect.value = settledAspect;
         zoomRef.current.currentZoom = zoomRef.current.nextZoom;
         zoomRef.current.currentStartZoom = zoomRef.current.currentZoom;
         zoomRef.current.nextStartZoom = zoomRef.current.currentZoom;
