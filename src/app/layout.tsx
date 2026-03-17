@@ -1,5 +1,5 @@
 import type React from "react";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono } from "next/font/google";
 
 import "~/styles/globals.css";
@@ -14,6 +14,23 @@ export const metadata: Metadata = {
   title: "SOTA",
   description: "Мы SOTA... потому что мы SOTA.",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
+  openGraph: {
+    title: "SOTA",
+    description: "Мы SOTA... потому что мы SOTA.",
+    url: "https://sota.llc",
+    siteName: "SOTA",
+    type: "website",
+    locale: "ru_RU",
+  },
+  twitter: {
+    card: "summary",
+    title: "SOTA",
+    description: "Мы SOTA... потому что мы SOTA.",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0a0a0a",
 };
 
 export default function RootLayout({
@@ -23,6 +40,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru">
+      <head>
+        <link
+          rel="preconnect"
+          href="https://cdn.engineering"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body className={`${jetBrainsMono.variable} font-mono antialiased`}>
         {children}
       </body>

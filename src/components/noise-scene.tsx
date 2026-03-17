@@ -5,6 +5,9 @@ import { useMemo, useRef, useEffect, useState } from "react";
 import type { Mesh, Texture } from "three";
 import { TextureLoader, LinearFilter, Vector2 } from "three";
 
+const FIRST_TEXTURE_FALLBACK_MS = 3_000;
+const ALL_TEXTURES_FALLBACK_MS = 10_000;
+
 interface ShaderUniforms {
   [uniform: string]: { value: unknown };
   uTime: { value: number };
@@ -16,6 +19,7 @@ interface ShaderUniforms {
   uTransition: { value: number };
   uZoom: { value: number };
   uNextZoom: { value: number };
+  uMouse: { value: Vector2 };
 }
 
 export interface SlideData {
@@ -42,6 +46,7 @@ const FRAGMENT_SHADER = `
   uniform float uTransition;
   uniform float uZoom;
   uniform float uNextZoom;
+  uniform vec2 uMouse;
   varying vec2 vUv;
   vec3 processImage(sampler2D tex, vec2 uv, float zoom, float texAspect) {
     float screenAspect = uResolution.x / uResolution.y;
@@ -51,7 +56,8 @@ const FRAGMENT_SHADER = `
     } else {
       scale.x = screenAspect / texAspect;
     }
-    vec2 zoomedUv = (uv - 0.5) * scale / zoom + 0.5;
+    vec2 parallaxOffset = (uMouse - 0.5) * 0.015;
+    vec2 zoomedUv = (uv - 0.5) * scale / zoom + 0.5 + parallaxOffset;
     vec4 bgColor = texture2D(tex, zoomedUv);
     vec3 darkBg = bgColor.rgb * 0.15;
     darkBg = pow(darkBg, vec3(1.4));
@@ -75,24 +81,30 @@ const FRAGMENT_SHADER = `
   }
 `;
 
+function getTextureAspect(texture: Texture | null): number {
+  return (texture?.userData?.aspect as number | undefined) ?? 1;
+}
+
 interface NoisePlaneProps {
-  slidesContentKey: string;
-  slideCount: number;
+  slideUrls: string[];
+  slidesKey: string;
   currentIndex: number;
   slideDurationMs: number;
   transitionDurationMs: number;
   onTextureLoaded: () => void;
   onAllTexturesLoaded: () => void;
+  reducedMotion: boolean;
 }
 
 function NoisePlane({
-  slidesContentKey,
-  slideCount,
+  slideUrls,
+  slidesKey,
   currentIndex,
   slideDurationMs,
   transitionDurationMs,
   onTextureLoaded,
   onAllTexturesLoaded,
+  reducedMotion,
 }: NoisePlaneProps) {
   const meshRef = useRef<Mesh>(null);
   const uniformsRef = useRef<ShaderUniforms | null>(null);
@@ -104,24 +116,24 @@ function NoisePlane({
     onAllTexturesLoadedRef.current = onAllTexturesLoaded;
   }, [onTextureLoaded, onAllTexturesLoaded]);
   const [loadProgress, setLoadProgress] = useState(() => ({
-    batchToken: slidesContentKey,
+    batchToken: slidesKey,
     count: 0,
   }));
   const loadedCount =
-    loadProgress.batchToken === slidesContentKey ? loadProgress.count : 0;
+    loadProgress.batchToken === slidesKey ? loadProgress.count : 0;
   const prevIndexRef = useRef(currentIndex);
   const hasInitialLoadSignalRef = useRef(false);
   const hasAllLoadedSignalRef = useRef(false);
   useEffect(() => {
     hasInitialLoadSignalRef.current = false;
     hasAllLoadedSignalRef.current = false;
-  }, [slidesContentKey]);
+  }, [slidesKey]);
   const textures = useMemo(() => {
     const loader = new TextureLoader();
     const renderer = gl as typeof gl & {
       initTexture?: (texture: Texture) => void;
     };
-    const batchKey = slidesContentKey;
+    const batchKey = slidesKey;
     const incrementLoadedCount = () => {
       setLoadProgress((progress) => {
         if (progress.batchToken === batchKey) {
@@ -130,7 +142,6 @@ function NoisePlane({
         return { batchToken: batchKey, count: 1 };
       });
     };
-    const slideUrls: string[] = JSON.parse(slidesContentKey) as string[];
     loader.crossOrigin = "anonymous";
     return slideUrls.map((url) => {
       const tex = loader.load(
@@ -158,10 +169,10 @@ function NoisePlane({
       );
       tex.minFilter = LinearFilter;
       tex.magFilter = LinearFilter;
-      tex.userData = { aspect: 1 };
+      tex.userData.aspect ??= 1;
       return tex;
     });
-  }, [gl, slidesContentKey]);
+  }, [gl, slidesKey, slideUrls]);
   useEffect(() => {
     if (loadedCount >= 1 && !hasInitialLoadSignalRef.current) {
       hasInitialLoadSignalRef.current = true;
@@ -169,7 +180,7 @@ function NoisePlane({
     }
   }, [loadedCount]);
   useEffect(() => {
-    if (slideCount === 0) {
+    if (slideUrls.length === 0) {
       if (!hasInitialLoadSignalRef.current) {
         hasInitialLoadSignalRef.current = true;
         onTextureLoadedRef.current();
@@ -180,13 +191,13 @@ function NoisePlane({
       }
       return;
     }
-    if (loadedCount >= slideCount && !hasAllLoadedSignalRef.current) {
+    if (loadedCount >= slideUrls.length && !hasAllLoadedSignalRef.current) {
       hasAllLoadedSignalRef.current = true;
       onAllTexturesLoadedRef.current();
     }
-  }, [loadedCount, slideCount]);
+  }, [loadedCount, slideUrls.length]);
   useEffect(() => {
-    if (slideCount === 0 || hasInitialLoadSignalRef.current) {
+    if (slideUrls.length === 0 || hasInitialLoadSignalRef.current) {
       return;
     }
     const timeout = setTimeout(() => {
@@ -194,13 +205,13 @@ function NoisePlane({
         hasInitialLoadSignalRef.current = true;
         onTextureLoadedRef.current();
       }
-    }, 3000);
+    }, FIRST_TEXTURE_FALLBACK_MS);
     return () => {
       clearTimeout(timeout);
     };
-  }, [slidesContentKey, slideCount]);
+  }, [slidesKey, slideUrls.length]);
   useEffect(() => {
-    if (slideCount === 0 || hasAllLoadedSignalRef.current) {
+    if (slideUrls.length === 0 || hasAllLoadedSignalRef.current) {
       return;
     }
     const timeout = setTimeout(() => {
@@ -208,11 +219,11 @@ function NoisePlane({
         hasAllLoadedSignalRef.current = true;
         onAllTexturesLoadedRef.current();
       }
-    }, 10_000);
+    }, ALL_TEXTURES_FALLBACK_MS);
     return () => {
       clearTimeout(timeout);
     };
-  }, [slidesContentKey, slideCount]);
+  }, [slidesKey, slideUrls.length]);
   useEffect(
     () => () => {
       textures.forEach((texture) => {
@@ -233,12 +244,17 @@ function NoisePlane({
       uTransition: { value: 0 },
       uZoom: { value: 1.0 },
       uNextZoom: { value: 1.0 },
+      uMouse: { value: new Vector2(0.5, 0.5) },
     };
     return u;
   }, [textures]);
   useEffect(() => {
     uniformsRef.current = uniforms;
   }, [uniforms]);
+  useEffect(() => {
+    const u = uniformsRef.current;
+    if (u) u.uResolution.value.set(size.width, size.height);
+  }, [size.width, size.height]);
   const transitionRef = useRef({ progress: 0, transitioning: false });
   const zoomRef = useRef({
     currentZoom: 1.0,
@@ -254,10 +270,9 @@ function NoisePlane({
     slideDurationMs / 1000,
     transitionDurationSeconds,
   );
-  const targetZoomPerSlide = 1.08;
+  const targetZoomPerSlide = reducedMotion ? 1.0 : 1.08;
   const zoomSpeed = (targetZoomPerSlide - 1) / slideDurationSeconds;
-  const getTextureAspect = (texture: Texture | null): number =>
-    (texture?.userData?.aspect as number | undefined) ?? 1;
+  const mouseTarget = useMemo(() => new Vector2(0.5, 0.5), []);
   useFrame((state) => {
     const u = uniformsRef.current;
     if (!meshRef.current || !u) return;
@@ -267,7 +282,10 @@ function NoisePlane({
       isFirstFrameRef.current = false;
     }
     u.uTime.value = elapsed;
-    u.uResolution.value.set(size.width, size.height);
+    if (!reducedMotion) {
+      mouseTarget.set(state.pointer.x * 0.5 + 0.5, state.pointer.y * 0.5 + 0.5);
+      u.uMouse.value.lerp(mouseTarget, 0.05);
+    }
     const currentTex = u.uTexture.value;
     const nextTex = u.uNextTexture.value;
     u.uTextureAspect.value = getTextureAspect(currentTex);
@@ -326,10 +344,11 @@ function NoisePlane({
         u.uTransition.value = 0;
       }
     } else {
-      u.uTransition.value = 0;
+      if (u.uTransition.value !== 0) u.uTransition.value = 0;
       const timeSinceSlideStart = elapsed - zoomRef.current.slideStartTime;
       zoomRef.current.currentZoom =
         zoomRef.current.currentStartZoom + timeSinceSlideStart * zoomSpeed;
+      zoomRef.current.nextZoom = zoomRef.current.currentZoom;
     }
     u.uZoom.value = zoomRef.current.currentZoom;
     u.uNextZoom.value = zoomRef.current.nextZoom;
@@ -349,24 +368,24 @@ function NoisePlane({
 interface NoiseSceneProps {
   slides: SlideData[];
   currentIndex: number;
-  slideDurationMs?: number;
-  transitionDurationMs?: number;
+  slideDurationMs: number;
+  transitionDurationMs: number;
   onTextureLoaded: () => void;
   onAllTexturesLoaded: () => void;
+  reducedMotion: boolean;
 }
 
 export function NoiseScene({
   slides,
   currentIndex,
-  slideDurationMs = 7500,
-  transitionDurationMs = 3000,
+  slideDurationMs,
+  transitionDurationMs,
   onTextureLoaded,
   onAllTexturesLoaded,
+  reducedMotion,
 }: NoiseSceneProps) {
-  const slidesContentKey = useMemo(
-    () => JSON.stringify(slides.map((slide) => slide.url)),
-    [slides],
-  );
+  const slideUrls = useMemo(() => slides.map((slide) => slide.url), [slides]);
+  const slidesKey = useMemo(() => slideUrls.join("\0"), [slideUrls]);
   return (
     <Canvas
       className="absolute inset-0"
@@ -376,14 +395,15 @@ export function NoiseScene({
       dpr={1}
     >
       <NoisePlane
-        key={slidesContentKey}
-        slidesContentKey={slidesContentKey}
-        slideCount={slides.length}
+        key={slidesKey}
+        slideUrls={slideUrls}
+        slidesKey={slidesKey}
         currentIndex={currentIndex}
         slideDurationMs={slideDurationMs}
         transitionDurationMs={transitionDurationMs}
         onTextureLoaded={onTextureLoaded}
         onAllTexturesLoaded={onAllTexturesLoaded}
+        reducedMotion={reducedMotion}
       />
     </Canvas>
   );
