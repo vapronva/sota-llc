@@ -9,29 +9,11 @@ import {
 } from "react";
 
 import { NoiseScene, type SlideData } from "~/components/noise-scene";
+import { WebGLErrorBoundary } from "~/components/webgl-fallback";
+import slidesData from "~/data/slides.json";
+import { useDeviceOrientation } from "~/hooks/use-device-orientation";
 
-const slides: SlideData[] = [
-  {
-    url: "https://cdn.engineering/hidetohyde/pixiv/130823834_p1.jpg",
-    credit: 'Background art: "Le soleil de ma vie" by Hyde on Pixiv',
-    creditLink: "https://www.pixiv.net/en/artworks/130823834",
-  },
-  {
-    url: "https://cdn.engineering/sota-llc/barkiplier.jpg",
-    credit: "Background Markiplier: Cream (dog) on Instagram",
-    creditLink: "https://www.instagram.com/p/DChUskEyZff",
-  },
-  {
-    url: "https://cdn.engineering/hidetohyde/pixiv/125578456_p0.jpg",
-    credit: 'Background art: "「なんだジロジロ見やがって」" by Hyde on Pixiv',
-    creditLink: "https://www.pixiv.net/en/artworks/125578456",
-  },
-  {
-    url: "https://cdn.engineering/hidetohyde/pixiv/116695137_p0.jpg",
-    credit: 'Background art: "コン" by Hyde on Pixiv',
-    creditLink: "https://www.pixiv.net/en/artworks/116695137",
-  },
-];
+const slides: SlideData[] = slidesData;
 
 const SLIDE_DURATION = 7500;
 const TRANSITION_DURATION = 3500;
@@ -53,6 +35,7 @@ export default function Home() {
     () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
     () => false,
   );
+  const orientation = useDeviceOrientation();
   const currentIndexRef = useRef(0);
   const creditTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleTextureLoaded = useCallback(() => setIsLoaded(true), []);
@@ -83,20 +66,32 @@ export default function Home() {
     };
   }, [allTexturesLoaded, reducedMotion]);
   return (
-    <main className="bg-background relative h-screen w-full overflow-hidden">
+    <main className="bg-background touch-action-none fixed inset-0 overflow-hidden">
       <div
         aria-hidden="true"
         className={`absolute inset-0 transition-opacity duration-1000 ${isLoaded ? "opacity-100" : "opacity-0"}`}
       >
-        <NoiseScene
-          slides={slides}
-          currentIndex={currentIndex}
-          slideDurationMs={SLIDE_DURATION}
-          transitionDurationMs={TRANSITION_DURATION}
-          onTextureLoaded={handleTextureLoaded}
-          onAllTexturesLoaded={handleAllTexturesLoaded}
-          reducedMotion={reducedMotion}
-        />
+        <WebGLErrorBoundary
+          fallback={
+            <div className="absolute inset-0 bg-linear-to-br from-[#0a0a0a] to-[#1a1a2e]" />
+          }
+          onError={handleTextureLoaded}
+        >
+          <NoiseScene
+            slides={slides}
+            currentIndex={currentIndex}
+            slideDurationMs={SLIDE_DURATION}
+            transitionDurationMs={TRANSITION_DURATION}
+            onTextureLoaded={handleTextureLoaded}
+            onAllTexturesLoaded={handleAllTexturesLoaded}
+            reducedMotion={reducedMotion}
+            pointerOverride={
+              orientation.supported
+                ? { x: orientation.x, y: orientation.y }
+                : undefined
+            }
+          />
+        </WebGLErrorBoundary>
       </div>
       <div
         className={`pointer-events-none absolute inset-0 z-10 flex flex-col justify-between p-4 transition-opacity delay-300 duration-1000 md:p-6 lg:p-8 ${isLoaded ? "opacity-100" : "opacity-0"}`}

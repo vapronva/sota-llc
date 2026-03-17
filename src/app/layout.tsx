@@ -31,6 +31,9 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#0a0a0a",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -44,6 +47,12 @@ export default function RootLayout({
         <link
           rel="preconnect"
           href="https://cdn.engineering"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preload"
+          href="https://cdn.engineering/hidetohyde/pixiv/130823834_p1.jpg"
+          as="image"
           crossOrigin="anonymous"
         />
       </head>

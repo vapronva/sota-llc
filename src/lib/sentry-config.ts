@@ -4,5 +4,11 @@ export const SENTRY_DSN =
 export const sentryBaseConfig = {
   dsn: SENTRY_DSN,
   tracesSampleRate: 1,
-  sendDefaultPii: true,
-} as const;
+  sendDefaultPii: false,
+};
+
+export const sentryClientConfig = {
+  ...sentryBaseConfig,
+  replaysSessionSampleRate: 1.0,
+  replaysOnErrorSampleRate: 1.0,
+};

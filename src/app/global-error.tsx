@@ -21,11 +21,39 @@ export default function GlobalError({
   return (
     <html lang="ru">
       <head>
-        <title>Что-то пошло не так | SOTA</title>
+        <title>Что-то пошло не так (sota.llc)</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <style>{`
+          @keyframes grain-shift {
+            0%, 100% { transform: translate(0, 0); }
+            10% { transform: translate(-5%, -10%); }
+            30% { transform: translate(7%, -25%); }
+            50% { transform: translate(-15%, 10%); }
+            70% { transform: translate(0%, 15%); }
+            90% { transform: translate(-10%, 10%); }
+          }
+          .grain-overlay { position: relative; }
+          .grain-overlay::before {
+            content: "";
+            position: fixed;
+            inset: -100%;
+            width: 300%;
+            height: 300%;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+            background-repeat: repeat;
+            background-size: 256px 256px;
+            opacity: 0.04;
+            pointer-events: none;
+            animation: grain-shift 0.4s steps(8) infinite;
+            z-index: 100;
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .grain-overlay::before { animation: none; opacity: 0.03; }
+          }
+        `}</style>
       </head>
       <body
-        className={jetBrainsMono.className}
+        className={`${jetBrainsMono.className} grain-overlay`}
         style={{
           margin: 0,
           minHeight: "100vh",

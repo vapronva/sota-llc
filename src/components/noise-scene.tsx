@@ -2,8 +2,8 @@
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef, useEffect, useState } from "react";
-import type { Mesh, Texture } from "three";
-import { TextureLoader, LinearFilter, Vector2 } from "three";
+import type { Mesh } from "three";
+import { Texture, TextureLoader, LinearFilter, Vector2 } from "three";
 
 const FIRST_TEXTURE_FALLBACK_MS = 3_000;
 const ALL_TEXTURES_FALLBACK_MS = 10_000;
@@ -56,13 +56,18 @@ const FRAGMENT_SHADER = `
     } else {
       scale.x = screenAspect / texAspect;
     }
-    vec2 parallaxOffset = (uMouse - 0.5) * 0.015;
+    vec2 parallaxOffset = (uMouse - 0.5) * 0.035;
     vec2 zoomedUv = (uv - 0.5) * scale / zoom + 0.5 + parallaxOffset;
-    vec4 bgColor = texture2D(tex, zoomedUv);
-    vec3 darkBg = bgColor.rgb * 0.15;
-    darkBg = pow(darkBg, vec3(1.4));
-    darkBg = darkBg * 0.7;
-    darkBg = clamp(darkBg, 0.0, 0.15);
+    float dist = length(uv - 0.5);
+    float aberration = dist * 0.002;
+    vec3 bgColor = vec3(
+      texture2D(tex, zoomedUv + vec2(aberration, 0.0)).r,
+      texture2D(tex, zoomedUv).g,
+      texture2D(tex, zoomedUv - vec2(aberration, 0.0)).b
+    );
+    vec3 darkBg = bgColor * 0.3;
+    darkBg = pow(darkBg, vec3(1.2));
+    darkBg = clamp(darkBg, 0.0, 0.3);
     return darkBg;
   }
   void main() {
@@ -77,6 +82,10 @@ const FRAGMENT_SHADER = `
     float x = (uv.x + 4.0) * (uv.y + 4.0) * (uTime * 10.0);
     float grain = (mod((mod(x, 13.0) + 1.0) * (mod(x, 123.0) + 1.0), 0.01) - 0.005) * strength;
     vec3 finalColor = darkBg + vec3(grain);
+    vec2 vignetteUv = vUv * (1.0 - vUv);
+    float vignette = vignetteUv.x * vignetteUv.y * 15.0;
+    vignette = pow(vignette, 0.25);
+    finalColor *= vignette;
     gl_FragColor = vec4(finalColor, 1.0);
   }
 `;
@@ -94,6 +103,7 @@ interface NoisePlaneProps {
   onTextureLoaded: () => void;
   onAllTexturesLoaded: () => void;
   reducedMotion: boolean;
+  pointerOverride?: { x: number; y: number };
 }
 
 function NoisePlane({
@@ -105,6 +115,7 @@ function NoisePlane({
   onTextureLoaded,
   onAllTexturesLoaded,
   reducedMotion,
+  pointerOverride,
 }: NoisePlaneProps) {
   const meshRef = useRef<Mesh>(null);
   const uniformsRef = useRef<ShaderUniforms | null>(null);
@@ -143,35 +154,63 @@ function NoisePlane({
       });
     };
     loader.crossOrigin = "anonymous";
-    return slideUrls.map((url) => {
-      const tex = loader.load(
-        url,
-        (t) => {
-          t.userData.aspect = t.image.width / t.image.height;
-          try {
-            renderer.initTexture?.(t);
-          } catch (err) {
-            if (process.env.NODE_ENV !== "production") {
-              console.warn(
-                "[NoiseScene] renderer.initTexture failed",
-                { url, textureId: t.id, renderer: renderer.constructor.name },
-                err,
-              );
-            }
-          }
-          incrementLoadedCount();
-        },
-        undefined,
-        (error) => {
-          console.error("Failed to load slide texture", { url, error });
-          incrementLoadedCount();
-        },
-      );
+    const onTexLoad = (tex: Texture, loaded: Texture, url: string) => {
+      const img = loaded.image as { width: number; height: number };
+      tex.image = loaded.image;
+      tex.userData.aspect = img.width / img.height;
+      tex.needsUpdate = true;
+      try {
+        renderer.initTexture?.(tex);
+      } catch (err) {
+        if (process.env.NODE_ENV !== "production") {
+          console.warn(
+            "[NoiseScene] renderer.initTexture failed",
+            { url, textureId: tex.id, renderer: renderer.constructor.name },
+            err,
+          );
+        }
+      }
+      incrementLoadedCount();
+    };
+    const onTexError = (url: string) => {
+      console.error("Failed to load slide texture", { url });
+      incrementLoadedCount();
+    };
+    const loadRemaining = () => {
+      for (let i = 1; i < slideUrls.length; i++) {
+        const url = slideUrls[i]!;
+        const tex = texArray[i]!;
+        loader.load(
+          url,
+          (loaded) => onTexLoad(tex, loaded, url),
+          undefined,
+          () => onTexError(url),
+        );
+      }
+    };
+    const texArray: Texture[] = slideUrls.map(() => {
+      const tex = new Texture();
       tex.minFilter = LinearFilter;
       tex.magFilter = LinearFilter;
-      tex.userData.aspect ??= 1;
+      tex.userData.aspect = 1;
       return tex;
     });
+    if (slideUrls[0]) {
+      const firstTex = texArray[0]!;
+      loader.load(
+        slideUrls[0],
+        (loaded) => {
+          onTexLoad(firstTex, loaded, slideUrls[0]!);
+          loadRemaining();
+        },
+        undefined,
+        () => {
+          onTexError(slideUrls[0]!);
+          loadRemaining();
+        },
+      );
+    }
+    return texArray;
   }, [gl, slidesKey, slideUrls]);
   useEffect(() => {
     if (loadedCount >= 1 && !hasInitialLoadSignalRef.current) {
@@ -272,6 +311,10 @@ function NoisePlane({
   );
   const targetZoomPerSlide = reducedMotion ? 1.0 : 1.08;
   const zoomSpeed = (targetZoomPerSlide - 1) / slideDurationSeconds;
+  const pointerOverrideRef = useRef(pointerOverride);
+  useEffect(() => {
+    pointerOverrideRef.current = pointerOverride;
+  }, [pointerOverride]);
   const mouseTarget = useMemo(() => new Vector2(0.5, 0.5), []);
   useFrame((state) => {
     const u = uniformsRef.current;
@@ -283,7 +326,10 @@ function NoisePlane({
     }
     u.uTime.value = elapsed;
     if (!reducedMotion) {
-      mouseTarget.set(state.pointer.x * 0.5 + 0.5, state.pointer.y * 0.5 + 0.5);
+      const po = pointerOverrideRef.current;
+      const px = po ? po.x * 0.5 + 0.5 : state.pointer.x * 0.15 + 0.5;
+      const py = po ? po.y * 0.5 + 0.5 : state.pointer.y * 0.15 + 0.5;
+      mouseTarget.set(px, py);
       u.uMouse.value.lerp(mouseTarget, 0.05);
     }
     const currentTex = u.uTexture.value;
@@ -373,6 +419,7 @@ interface NoiseSceneProps {
   onTextureLoaded: () => void;
   onAllTexturesLoaded: () => void;
   reducedMotion: boolean;
+  pointerOverride?: { x: number; y: number };
 }
 
 export function NoiseScene({
@@ -383,6 +430,7 @@ export function NoiseScene({
   onTextureLoaded,
   onAllTexturesLoaded,
   reducedMotion,
+  pointerOverride,
 }: NoiseSceneProps) {
   const slideUrls = useMemo(() => slides.map((slide) => slide.url), [slides]);
   const slidesKey = useMemo(() => slideUrls.join("\0"), [slideUrls]);
@@ -404,6 +452,7 @@ export function NoiseScene({
         onTextureLoaded={onTextureLoaded}
         onAllTexturesLoaded={onAllTexturesLoaded}
         reducedMotion={reducedMotion}
+        pointerOverride={pointerOverride}
       />
     </Canvas>
   );
