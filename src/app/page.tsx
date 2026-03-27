@@ -44,6 +44,18 @@ export default function Home() {
     [],
   );
   useEffect(() => {
+    if (!reducedMotion) return;
+    if (creditTimeoutRef.current) {
+      clearTimeout(creditTimeoutRef.current);
+      creditTimeoutRef.current = null;
+    }
+    const rafId = requestAnimationFrame(() => {
+      setCreditVisible(true);
+      setDisplayedCredit(slides[currentIndexRef.current]!);
+    });
+    return () => cancelAnimationFrame(rafId);
+  }, [reducedMotion]);
+  useEffect(() => {
     if (!allTexturesLoaded || slides.length <= 1 || reducedMotion) return;
     const interval = setInterval(() => {
       const nextIndex = (currentIndexRef.current + 1) % slides.length;

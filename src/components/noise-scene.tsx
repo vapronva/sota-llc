@@ -126,32 +126,17 @@ function NoisePlane({
     onTextureLoadedRef.current = onTextureLoaded;
     onAllTexturesLoadedRef.current = onAllTexturesLoaded;
   }, [onTextureLoaded, onAllTexturesLoaded]);
-  const [loadProgress, setLoadProgress] = useState(() => ({
-    batchToken: slidesKey,
-    count: 0,
-  }));
-  const loadedCount =
-    loadProgress.batchToken === slidesKey ? loadProgress.count : 0;
+  const [loadedCount, setLoadedCount] = useState(0);
   const prevIndexRef = useRef(currentIndex);
   const hasInitialLoadSignalRef = useRef(false);
   const hasAllLoadedSignalRef = useRef(false);
-  useEffect(() => {
-    hasInitialLoadSignalRef.current = false;
-    hasAllLoadedSignalRef.current = false;
-  }, [slidesKey]);
   const textures = useMemo(() => {
     const loader = new TextureLoader();
     const renderer = gl as typeof gl & {
       initTexture?: (texture: Texture) => void;
     };
-    const batchKey = slidesKey;
     const incrementLoadedCount = () => {
-      setLoadProgress((progress) => {
-        if (progress.batchToken === batchKey) {
-          return { batchToken: progress.batchToken, count: progress.count + 1 };
-        }
-        return { batchToken: batchKey, count: 1 };
-      });
+      setLoadedCount((c) => c + 1);
     };
     loader.crossOrigin = "anonymous";
     const onTexLoad = (tex: Texture, loaded: Texture, url: string) => {
@@ -211,7 +196,7 @@ function NoisePlane({
       );
     }
     return texArray;
-  }, [gl, slidesKey, slideUrls]);
+  }, [gl, slideUrls]);
   useEffect(() => {
     if (loadedCount >= 1 && !hasInitialLoadSignalRef.current) {
       hasInitialLoadSignalRef.current = true;
