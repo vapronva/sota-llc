@@ -87,7 +87,10 @@ export default function Home() {
           fallback={
             <div className="absolute inset-0 bg-linear-to-br from-[#0a0a0a] to-[#1a1a2e]" />
           }
-          onError={handleTextureLoaded}
+          onError={() => {
+            handleTextureLoaded();
+            handleAllTexturesLoaded();
+          }}
         >
           <NoiseScene
             slides={slides}
