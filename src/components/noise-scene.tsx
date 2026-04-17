@@ -2,7 +2,7 @@
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef, useEffect, useState } from "react";
-import type { Mesh } from "three";
+import type { Mesh, ShaderMaterial } from "three";
 import { Texture, TextureLoader, LinearFilter, Vector2 } from "three";
 
 const FIRST_TEXTURE_FALLBACK_MS = 3_000;
@@ -118,7 +118,7 @@ function NoisePlane({
   pointerOverride,
 }: NoisePlaneProps) {
   const meshRef = useRef<Mesh>(null);
-  const uniformsRef = useRef<ShaderUniforms | null>(null);
+  const materialRef = useRef<ShaderMaterial>(null);
   const { viewport, size, gl } = useThree();
   const onTextureLoadedRef = useRef(onTextureLoaded);
   const onAllTexturesLoadedRef = useRef(onAllTexturesLoaded);
@@ -272,13 +272,6 @@ function NoisePlane({
     };
     return u;
   }, [textures]);
-  useEffect(() => {
-    uniformsRef.current = uniforms;
-  }, [uniforms]);
-  useEffect(() => {
-    const u = uniformsRef.current;
-    if (u) u.uResolution.value.set(size.width, size.height);
-  }, [size.width, size.height]);
   const transitionRef = useRef({ progress: 0, transitioning: false });
   const zoomRef = useRef({
     currentZoom: 1.0,
@@ -302,7 +295,7 @@ function NoisePlane({
   }, [pointerOverride]);
   const mouseTarget = useMemo(() => new Vector2(0.5, 0.5), []);
   useFrame((state) => {
-    const u = uniformsRef.current;
+    const u = materialRef.current?.uniforms as ShaderUniforms | undefined;
     if (!meshRef.current || !u) return;
     const elapsed = state.clock.elapsedTime;
     if (isFirstFrameRef.current) {
@@ -310,6 +303,7 @@ function NoisePlane({
       isFirstFrameRef.current = false;
     }
     u.uTime.value = elapsed;
+    u.uResolution.value.set(size.width, size.height);
     if (!reducedMotion) {
       const po = pointerOverrideRef.current;
       const px = po ? po.x * 0.5 + 0.5 : state.pointer.x * 0.15 + 0.5;
@@ -388,6 +382,7 @@ function NoisePlane({
     <mesh ref={meshRef} scale={[viewport.width, viewport.height, 1]}>
       <planeGeometry args={[1, 1]} />
       <shaderMaterial
+        ref={materialRef}
         uniforms={uniforms}
         vertexShader={VERTEX_SHADER}
         fragmentShader={FRAGMENT_SHADER}

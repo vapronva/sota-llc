@@ -31,6 +31,8 @@ export function useDeviceOrientation(): DeviceOrientationState {
   }, []);
   useEffect(() => {
     if (typeof DeviceOrientationEvent === "undefined") return;
+    if (!window.matchMedia("(hover: none) and (pointer: coarse)").matches)
+      return;
     const doe = DeviceOrientationEvent as unknown as {
       requestPermission?: () => Promise<"granted" | "denied">;
     };
