@@ -13,14 +13,14 @@ interface State {
 }
 
 export class WebGLErrorBoundary extends Component<Props, State> {
-  state: State = { hasError: false };
+  override state: State = { hasError: false };
   static getDerivedStateFromError(): State {
     return { hasError: true };
   }
-  componentDidCatch() {
+  override componentDidCatch() {
     this.props.onError?.();
   }
-  render() {
+  override render() {
     if (this.state.hasError) return this.props.fallback;
     return this.props.children;
   }

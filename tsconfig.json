@@ -2,7 +2,8 @@
   "compilerOptions": {
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "target": "es2022",
+    "target": "ES2023",
+    "lib": ["DOM", "DOM.Iterable", "ES2025"],
     "allowJs": true,
     "resolveJsonModule": true,
     "moduleDetection": "force",
@@ -10,18 +11,16 @@
     "verbatimModuleSyntax": true,
     "strict": true,
     "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
     "checkJs": true,
-    "lib": ["dom", "dom.iterable", "ES2022"],
     "noEmit": true,
-    "module": "ESNext",
+    "module": "Preserve",
     "moduleResolution": "Bundler",
     "jsx": "react-jsx",
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
+    "plugins": [{ "name": "next" }],
     "incremental": true,
+    "types": ["node"],
     "paths": {
       "~/*": ["./src/*"]
     }

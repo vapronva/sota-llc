@@ -2,22 +2,9 @@ FROM docker.io/library/node:25-alpine AS builder
 
 WORKDIR /usr/src/app
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 
-RUN --mount=type=secret,id=NPM_PROXY_URL \
-    --mount=type=secret,id=NPM_PROXY_USERNAME \
-    --mount=type=secret,id=NPM_PROXY_PASSWORD \
-    NPM_PROXY_URL="$(cat /run/secrets/NPM_PROXY_URL)" && \
-    NPM_PROXY_USERNAME="$(cat /run/secrets/NPM_PROXY_USERNAME)" && \
-    NPM_PROXY_PASSWORD="$(cat /run/secrets/NPM_PROXY_PASSWORD)" && \
-    REGISTRY_HOST=$(echo "${NPM_PROXY_URL}" | sed -E 's!^https?://!!' | sed 's!/$!!') && \
-    npm config set registry "${NPM_PROXY_URL}" && \
-    npm config set "//${REGISTRY_HOST}/:_auth"="$(echo -n "$NPM_PROXY_USERNAME:$NPM_PROXY_PASSWORD" | base64)" && \
-    npm config set replace-registry-host "${REGISTRY_HOST}" && \
-    npm install --global pnpm@10 && \
-    pnpm config set registry "${NPM_PROXY_URL}" && \
-    pnpm config set "//${REGISTRY_HOST}/:_auth"="$(echo -n "$NPM_PROXY_USERNAME:$NPM_PROXY_PASSWORD" | base64)" && \
-    pnpm config set replace-registry-host "${REGISTRY_HOST}" && \
+RUN npm install --global pnpm@10 && \
     pnpm install
 
 COPY . .

@@ -1,6 +1,7 @@
 import type { BrowserOptions, NodeOptions } from "@sentry/nextjs";
 
 export const SENTRY_DSN =
+  process.env.NEXT_PUBLIC_SENTRY_DSN ??
   "https://2a94e48d3b3570f2b936780d236a9656@sentry.cumlord.ru/75";
 
 export const sentryBaseConfig = {

@@ -1,12 +1,12 @@
 {
   "name": "sota-llc",
-  "version": "1.4.6",
+  "version": "1.4.7",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "next build",
     "check": "next typegen && eslint . && tsc --noEmit",
-    "dev": "next dev --turbo",
+    "dev": "next dev",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx,mjs,cjs,json,yaml,yml}\" --cache",
     "format:write": "prettier --write \"**/*.{ts,tsx,js,jsx,mdx,mjs,cjs,json,yaml,yml}\" --cache",
     "lint": "eslint . --cache",
@@ -39,6 +39,6 @@
     "prettier-plugin-tailwindcss": "^0.7.2",
     "tailwindcss": "^4.2.2",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.58.2"
+    "typescript-eslint": "^8.59.0"
   }
 }

@@ -3,6 +3,5 @@
 node_modules
 .env*
 *.md
+*.tsbuildinfo
 support/
-.idea/
-.vscode/
