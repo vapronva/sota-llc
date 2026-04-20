@@ -1,6 +1,6 @@
 {
   "name": "sota-llc",
-  "version": "1.4.5",
+  "version": "1.4.6",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,8 +9,8 @@
     "dev": "next dev --turbo",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx,mjs,cjs,json,yaml,yml}\" --cache",
     "format:write": "prettier --write \"**/*.{ts,tsx,js,jsx,mdx,mjs,cjs,json,yaml,yml}\" --cache",
-    "lint": "eslint .",
-    "lint:fix": "eslint --fix .",
+    "lint": "eslint . --cache",
+    "lint:fix": "eslint --fix . --cache",
     "preview": "next build && next start",
     "start": "next start",
     "typecheck": "next typegen && tsc --noEmit"
@@ -33,6 +33,7 @@
     "@types/three": "^0.184.0",
     "eslint": "^10.2.1",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "jiti": "^2.6.1",
     "postcss": "^8.5.10",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.7.2",
