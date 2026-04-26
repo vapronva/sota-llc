@@ -1,6 +1,6 @@
 {
   "name": "sota-llc",
-  "version": "1.4.7",
+  "version": "1.4.8",
   "private": true,
   "type": "module",
   "scripts": {
@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@react-three/fiber": "^9.6.0",
-    "@sentry/nextjs": "^10.49.0",
+    "@sentry/nextjs": "^10.50.0",
     "next": "^16.2.4",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
@@ -26,7 +26,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@next/eslint-plugin-next": "^16.2.4",
-    "@tailwindcss/postcss": "^4.2.2",
+    "@tailwindcss/postcss": "^4.2.4",
     "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
@@ -36,8 +36,8 @@
     "jiti": "^2.6.1",
     "postcss": "^8.5.10",
     "prettier": "^3.8.3",
-    "prettier-plugin-tailwindcss": "^0.7.2",
-    "tailwindcss": "^4.2.2",
+    "prettier-plugin-tailwindcss": "^0.7.3",
+    "tailwindcss": "^4.2.4",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.59.0"
   }
