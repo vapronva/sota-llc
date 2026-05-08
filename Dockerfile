@@ -1,10 +1,10 @@
-FROM docker.io/library/node:25-alpine AS builder
+FROM docker.io/library/node:26-alpine AS builder
 
 WORKDIR /usr/src/app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 
-RUN npm install --global pnpm@10 && \
+RUN npm install --global pnpm@11 && \
     pnpm install
 
 COPY . .
