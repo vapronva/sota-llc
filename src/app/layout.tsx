@@ -12,11 +12,11 @@ const jetBrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://sota.llc"),
   title: "SOTA",
-  description: "Мы SOTA... потому что мы SOTA.",
+  description: "Мы SOTA… потому что мы SOTA.",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
   openGraph: {
     title: "SOTA",
-    description: "Мы SOTA... потому что мы SOTA.",
+    description: "Мы SOTA… потому что мы SOTA.",
     url: "https://sota.llc",
     siteName: "SOTA",
     type: "website",
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary",
     title: "SOTA",
-    description: "Мы SOTA... потому что мы SOTA.",
+    description: "Мы SOTA… потому что мы SOTA.",
   },
 };
 

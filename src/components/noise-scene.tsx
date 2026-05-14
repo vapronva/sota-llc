@@ -1,9 +1,16 @@
 "use client";
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { useMemo, useRef, useEffect, useState } from "react";
-import type { Mesh, ShaderMaterial } from "three";
-import { Texture, TextureLoader, LinearFilter, Vector2 } from "three";
+import { useEffect, useMemo, useRef } from "react";
+import {
+  LinearFilter,
+  Mesh,
+  PlaneGeometry,
+  ShaderMaterial,
+  Texture,
+  TextureLoader,
+  Vector2,
+} from "three";
 
 const FIRST_TEXTURE_FALLBACK_MS = 3_000;
 const ALL_TEXTURES_FALLBACK_MS = 10_000;
@@ -94,52 +101,66 @@ function getTextureAspect(texture: Texture | null): number {
   return (texture?.userData?.aspect as number | undefined) ?? 1;
 }
 
-interface NoisePlaneProps {
-  slideUrls: string[];
-  slidesKey: string;
-  currentIndex: number;
-  slideDurationMs: number;
-  transitionDurationMs: number;
-  onTextureLoaded: () => void;
-  onAllTexturesLoaded: () => void;
-  reducedMotion: boolean;
-  pointerOverride?: { x: number; y: number };
-}
-
-function NoisePlane({
-  slideUrls,
-  slidesKey,
-  currentIndex,
-  slideDurationMs,
-  transitionDurationMs,
-  onTextureLoaded,
-  onAllTexturesLoaded,
-  reducedMotion,
-  pointerOverride,
-}: NoisePlaneProps) {
-  const meshRef = useRef<Mesh>(null);
-  const materialRef = useRef<ShaderMaterial>(null);
-  const { viewport, size, gl } = useThree();
-  const onTextureLoadedRef = useRef(onTextureLoaded);
-  const onAllTexturesLoadedRef = useRef(onAllTexturesLoaded);
+function useSlideTextures(
+  slideUrls: string[],
+  slidesKey: string,
+  onTextureLoaded: () => void,
+  onAllTexturesLoaded: () => void,
+): Texture[] {
+  const { gl } = useThree();
+  const onLoadedRef = useRef(onTextureLoaded);
+  const onAllLoadedRef = useRef(onAllTexturesLoaded);
   useEffect(() => {
-    onTextureLoadedRef.current = onTextureLoaded;
-    onAllTexturesLoadedRef.current = onAllTexturesLoaded;
+    onLoadedRef.current = onTextureLoaded;
+    onAllLoadedRef.current = onAllTexturesLoaded;
   }, [onTextureLoaded, onAllTexturesLoaded]);
-  const [loadedCount, setLoadedCount] = useState(0);
-  const prevIndexRef = useRef(currentIndex);
-  const hasInitialLoadSignalRef = useRef(false);
-  const hasAllLoadedSignalRef = useRef(false);
-  const textures = useMemo(() => {
+  const loadedCountRef = useRef(0);
+  const hasInitialSignalRef = useRef(false);
+  const hasAllSignalRef = useRef(false);
+  const textures = useMemo<Texture[]>(
+    () =>
+      slideUrls.map(() => {
+        const tex = new Texture();
+        tex.minFilter = LinearFilter;
+        tex.magFilter = LinearFilter;
+        tex.userData.aspect = 1;
+        return tex;
+      }),
+    [slideUrls],
+  );
+  useEffect(() => {
+    if (slideUrls.length === 0) {
+      if (!hasInitialSignalRef.current) {
+        hasInitialSignalRef.current = true;
+        onLoadedRef.current();
+      }
+      if (!hasAllSignalRef.current) {
+        hasAllSignalRef.current = true;
+        onAllLoadedRef.current();
+      }
+      return;
+    }
     const loader = new TextureLoader();
+    loader.crossOrigin = "anonymous";
     const renderer = gl as typeof gl & {
       initTexture?: (texture: Texture) => void;
     };
-    const incrementLoadedCount = () => {
-      setLoadedCount((c) => c + 1);
+    let cancelled = false;
+    const total = slideUrls.length;
+    const signal = () => {
+      if (cancelled) return;
+      loadedCountRef.current += 1;
+      if (!hasInitialSignalRef.current && loadedCountRef.current >= 1) {
+        hasInitialSignalRef.current = true;
+        onLoadedRef.current();
+      }
+      if (!hasAllSignalRef.current && loadedCountRef.current >= total) {
+        hasAllSignalRef.current = true;
+        onAllLoadedRef.current();
+      }
     };
-    loader.crossOrigin = "anonymous";
     const onTexLoad = (tex: Texture, loaded: Texture, url: string) => {
+      if (cancelled) return;
       const img = loaded.image as { width: number; height: number };
       tex.image = loaded.image;
       tex.userData.aspect = img.width / img.height;
@@ -155,16 +176,17 @@ function NoisePlane({
           );
         }
       }
-      incrementLoadedCount();
+      signal();
     };
     const onTexError = (url: string) => {
+      if (cancelled) return;
       console.error("Failed to load slide texture", { url });
-      incrementLoadedCount();
+      signal();
     };
-    const loadRemaining = () => {
+    const loadRest = () => {
       for (let i = 1; i < slideUrls.length; i++) {
         const url = slideUrls[i]!;
-        const tex = texArray[i]!;
+        const tex = textures[i]!;
         loader.load(
           url,
           (loaded) => onTexLoad(tex, loaded, url),
@@ -173,105 +195,116 @@ function NoisePlane({
         );
       }
     };
-    const texArray: Texture[] = slideUrls.map(() => {
-      const tex = new Texture();
-      tex.minFilter = LinearFilter;
-      tex.magFilter = LinearFilter;
-      tex.userData.aspect = 1;
-      return tex;
-    });
-    if (slideUrls[0]) {
-      const firstTex = texArray[0]!;
-      loader.load(
-        slideUrls[0],
-        (loaded) => {
-          onTexLoad(firstTex, loaded, slideUrls[0]!);
-          loadRemaining();
-        },
-        undefined,
-        () => {
-          onTexError(slideUrls[0]!);
-          loadRemaining();
-        },
-      );
-    }
-    return texArray;
-  }, [gl, slideUrls]);
+    const firstUrl = slideUrls[0]!;
+    const firstTex = textures[0]!;
+    loader.load(
+      firstUrl,
+      (loaded) => {
+        onTexLoad(firstTex, loaded, firstUrl);
+        loadRest();
+      },
+      undefined,
+      () => {
+        onTexError(firstUrl);
+        loadRest();
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [gl, slideUrls, textures]);
   useEffect(() => {
-    if (loadedCount >= 1 && !hasInitialLoadSignalRef.current) {
-      hasInitialLoadSignalRef.current = true;
-      onTextureLoadedRef.current();
-    }
-  }, [loadedCount]);
-  useEffect(() => {
-    if (slideUrls.length === 0) {
-      if (!hasInitialLoadSignalRef.current) {
-        hasInitialLoadSignalRef.current = true;
-        onTextureLoadedRef.current();
-      }
-      if (!hasAllLoadedSignalRef.current) {
-        hasAllLoadedSignalRef.current = true;
-        onAllTexturesLoadedRef.current();
-      }
-      return;
-    }
-    if (loadedCount >= slideUrls.length && !hasAllLoadedSignalRef.current) {
-      hasAllLoadedSignalRef.current = true;
-      onAllTexturesLoadedRef.current();
-    }
-  }, [loadedCount, slideUrls.length]);
-  useEffect(() => {
-    if (slideUrls.length === 0 || hasInitialLoadSignalRef.current) {
-      return;
-    }
+    if (slideUrls.length === 0 || hasInitialSignalRef.current) return;
     const timeout = setTimeout(() => {
-      if (!hasInitialLoadSignalRef.current) {
-        hasInitialLoadSignalRef.current = true;
-        onTextureLoadedRef.current();
+      if (!hasInitialSignalRef.current) {
+        hasInitialSignalRef.current = true;
+        onLoadedRef.current();
       }
     }, FIRST_TEXTURE_FALLBACK_MS);
-    return () => {
-      clearTimeout(timeout);
-    };
+    return () => clearTimeout(timeout);
   }, [slidesKey, slideUrls.length]);
   useEffect(() => {
-    if (slideUrls.length === 0 || hasAllLoadedSignalRef.current) {
-      return;
-    }
+    if (slideUrls.length === 0 || hasAllSignalRef.current) return;
     const timeout = setTimeout(() => {
-      if (!hasAllLoadedSignalRef.current) {
-        hasAllLoadedSignalRef.current = true;
-        onAllTexturesLoadedRef.current();
+      if (!hasAllSignalRef.current) {
+        hasAllSignalRef.current = true;
+        onAllLoadedRef.current();
       }
     }, ALL_TEXTURES_FALLBACK_MS);
-    return () => {
-      clearTimeout(timeout);
-    };
+    return () => clearTimeout(timeout);
   }, [slidesKey, slideUrls.length]);
   useEffect(
     () => () => {
-      textures.forEach((texture) => {
-        texture.dispose();
-      });
+      textures.forEach((texture) => texture.dispose());
     },
     [textures],
   );
-  const uniforms = useMemo(() => {
-    const initialTexture = textures[0] ?? null;
-    const u: ShaderUniforms = {
+  return textures;
+}
+
+function useNoiseShaderMesh(textures: Texture[]) {
+  const { scene } = useThree();
+  const meshRef = useRef<Mesh | null>(null);
+  const materialRef = useRef<ShaderMaterial | null>(null);
+  const uniforms = useMemo<ShaderUniforms>(() => {
+    const initial = textures[0] ?? null;
+    return {
       uTime: { value: 0 },
       uResolution: { value: new Vector2(1, 1) },
-      uTexture: { value: initialTexture },
+      uTexture: { value: initial },
       uTextureAspect: { value: 1 },
-      uNextTexture: { value: initialTexture },
+      uNextTexture: { value: initial },
       uNextTextureAspect: { value: 1 },
       uTransition: { value: 0 },
       uZoom: { value: 1.0 },
       uNextZoom: { value: 1.0 },
       uMouse: { value: new Vector2(0.5, 0.5) },
     };
-    return u;
   }, [textures]);
+  useEffect(() => {
+    const geometry = new PlaneGeometry(1, 1);
+    const material = new ShaderMaterial({
+      vertexShader: VERTEX_SHADER,
+      fragmentShader: FRAGMENT_SHADER,
+      uniforms,
+    });
+    const mesh = new Mesh(geometry, material);
+    meshRef.current = mesh;
+    materialRef.current = material;
+    scene.add(mesh);
+    return () => {
+      scene.remove(mesh);
+      geometry.dispose();
+      material.dispose();
+      meshRef.current = null;
+      materialRef.current = null;
+    };
+  }, [scene, uniforms]);
+  return { meshRef, materialRef };
+}
+
+interface FrameOptions {
+  meshRef: React.RefObject<Mesh | null>;
+  materialRef: React.RefObject<ShaderMaterial | null>;
+  textures: Texture[];
+  currentIndex: number;
+  slideDurationMs: number;
+  transitionDurationMs: number;
+  reducedMotion: boolean;
+  pointerOverride?: { x: number; y: number };
+}
+
+function useNoiseFrame({
+  meshRef,
+  materialRef,
+  textures,
+  currentIndex,
+  slideDurationMs,
+  transitionDurationMs,
+  reducedMotion,
+  pointerOverride,
+}: FrameOptions) {
+  const { viewport, size } = useThree();
   const transitionRef = useRef({ progress: 0, transitioning: false });
   const zoomRef = useRef({
     currentZoom: 1.0,
@@ -282,21 +315,21 @@ function NoisePlane({
     transitionStartTime: 0,
   });
   const isFirstFrameRef = useRef(true);
-  const transitionDurationSeconds = Math.max(transitionDurationMs / 1000, 0.1);
-  const slideDurationSeconds = Math.max(
-    slideDurationMs / 1000,
-    transitionDurationSeconds,
-  );
-  const targetZoomPerSlide = reducedMotion ? 1.0 : 1.08;
-  const zoomSpeed = (targetZoomPerSlide - 1) / slideDurationSeconds;
+  const prevIndexRef = useRef(currentIndex);
   const pointerOverrideRef = useRef(pointerOverride);
   useEffect(() => {
     pointerOverrideRef.current = pointerOverride;
   }, [pointerOverride]);
   const mouseTarget = useMemo(() => new Vector2(0.5, 0.5), []);
+  const transitionSeconds = Math.max(transitionDurationMs / 1000, 0.1);
+  const slideSeconds = Math.max(slideDurationMs / 1000, transitionSeconds);
+  const zoomSpeed = ((reducedMotion ? 1.0 : 1.08) - 1) / slideSeconds;
   useFrame((state) => {
-    const u = materialRef.current?.uniforms as ShaderUniforms | undefined;
-    if (!meshRef.current || !u) return;
+    const mesh = meshRef.current;
+    const material = materialRef.current;
+    if (!mesh || !material) return;
+    const u = material.uniforms as ShaderUniforms;
+    mesh.scale.set(viewport.width, viewport.height, 1);
     const elapsed = state.clock.elapsedTime;
     if (isFirstFrameRef.current) {
       zoomRef.current.slideStartTime = elapsed;
@@ -311,10 +344,8 @@ function NoisePlane({
       mouseTarget.set(px, py);
       u.uMouse.value.lerp(mouseTarget, 0.05);
     }
-    const currentTex = u.uTexture.value;
-    const nextTex = u.uNextTexture.value;
-    u.uTextureAspect.value = getTextureAspect(currentTex);
-    u.uNextTextureAspect.value = getTextureAspect(nextTex);
+    u.uTextureAspect.value = getTextureAspect(u.uTexture.value);
+    u.uNextTextureAspect.value = getTextureAspect(u.uNextTexture.value);
     const clampedIndex =
       textures.length > 0
         ? Math.max(0, Math.min(currentIndex, textures.length - 1))
@@ -339,27 +370,21 @@ function NoisePlane({
     }
     if (transitionRef.current.transitioning) {
       const transitionElapsed = elapsed - zoomRef.current.transitionStartTime;
-      const clampedTransitionElapsed = Math.min(
-        transitionElapsed,
-        transitionDurationSeconds,
-      );
-      const nextProgress = Math.min(
-        clampedTransitionElapsed / transitionDurationSeconds,
-        1,
-      );
-      transitionRef.current.progress = nextProgress;
+      const clamped = Math.min(transitionElapsed, transitionSeconds);
+      const progress = Math.min(clamped / transitionSeconds, 1);
+      transitionRef.current.progress = progress;
       zoomRef.current.currentZoom =
-        zoomRef.current.currentStartZoom + clampedTransitionElapsed * zoomSpeed;
+        zoomRef.current.currentStartZoom + clamped * zoomSpeed;
       zoomRef.current.nextZoom =
-        zoomRef.current.nextStartZoom + clampedTransitionElapsed * zoomSpeed;
-      u.uTransition.value = nextProgress;
-      if (nextProgress >= 1) {
+        zoomRef.current.nextStartZoom + clamped * zoomSpeed;
+      u.uTransition.value = progress;
+      if (progress >= 1) {
         transitionRef.current = { progress: 0, transitioning: false };
-        const settledTexture = textures[clampedIndex] ?? null;
-        const settledAspect = getTextureAspect(settledTexture);
-        u.uTexture.value = settledTexture;
+        const settled = textures[clampedIndex] ?? null;
+        const settledAspect = getTextureAspect(settled);
+        u.uTexture.value = settled;
         u.uTextureAspect.value = settledAspect;
-        u.uNextTexture.value = settledTexture;
+        u.uNextTexture.value = settled;
         u.uNextTextureAspect.value = settledAspect;
         zoomRef.current.currentZoom = zoomRef.current.nextZoom;
         zoomRef.current.currentStartZoom = zoomRef.current.currentZoom;
@@ -370,25 +395,57 @@ function NoisePlane({
       }
     } else {
       if (u.uTransition.value !== 0) u.uTransition.value = 0;
-      const timeSinceSlideStart = elapsed - zoomRef.current.slideStartTime;
+      const sinceStart = elapsed - zoomRef.current.slideStartTime;
       zoomRef.current.currentZoom =
-        zoomRef.current.currentStartZoom + timeSinceSlideStart * zoomSpeed;
+        zoomRef.current.currentStartZoom + sinceStart * zoomSpeed;
       zoomRef.current.nextZoom = zoomRef.current.currentZoom;
     }
     u.uZoom.value = zoomRef.current.currentZoom;
     u.uNextZoom.value = zoomRef.current.nextZoom;
   });
-  return (
-    <mesh ref={meshRef} scale={[viewport.width, viewport.height, 1]}>
-      <planeGeometry args={[1, 1]} />
-      <shaderMaterial
-        ref={materialRef}
-        uniforms={uniforms}
-        vertexShader={VERTEX_SHADER}
-        fragmentShader={FRAGMENT_SHADER}
-      />
-    </mesh>
+}
+
+interface NoisePlaneProps {
+  slideUrls: string[];
+  slidesKey: string;
+  currentIndex: number;
+  slideDurationMs: number;
+  transitionDurationMs: number;
+  onTextureLoaded: () => void;
+  onAllTexturesLoaded: () => void;
+  reducedMotion: boolean;
+  pointerOverride?: { x: number; y: number };
+}
+
+function NoisePlane({
+  slideUrls,
+  slidesKey,
+  currentIndex,
+  slideDurationMs,
+  transitionDurationMs,
+  onTextureLoaded,
+  onAllTexturesLoaded,
+  reducedMotion,
+  pointerOverride,
+}: NoisePlaneProps) {
+  const textures = useSlideTextures(
+    slideUrls,
+    slidesKey,
+    onTextureLoaded,
+    onAllTexturesLoaded,
   );
+  const { meshRef, materialRef } = useNoiseShaderMesh(textures);
+  useNoiseFrame({
+    meshRef,
+    materialRef,
+    textures,
+    currentIndex,
+    slideDurationMs,
+    transitionDurationMs,
+    reducedMotion,
+    pointerOverride,
+  });
+  return null;
 }
 
 interface NoiseSceneProps {

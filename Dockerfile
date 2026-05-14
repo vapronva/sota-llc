@@ -15,7 +15,7 @@ RUN --mount=type=secret,id=NODE_ENV \
     SENTRY_AUTH_TOKEN="$(cat /run/secrets/SENTRY_AUTH_TOKEN)" && \
     pnpm run build
 
-FROM docker.io/library/node:25-alpine
+FROM docker.io/library/node:26-alpine
 
 WORKDIR /usr/src/app
 
