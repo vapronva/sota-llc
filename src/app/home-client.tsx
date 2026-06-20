@@ -18,7 +18,6 @@ const slides: SlideData[] = slidesData;
 const SLIDE_DURATION = 7500;
 const TRANSITION_DURATION = 3500;
 const CREDIT_TRANSITION_DURATION = 2000;
-const CURRENT_YEAR = new Date().getFullYear();
 
 type SlideshowState = {
   currentIndex: number;
@@ -74,7 +73,7 @@ const getReducedMotionSnapshot = () =>
 
 const getReducedMotionServer = () => false;
 
-export default function HomeClient() {
+export default function HomeClient({ currentYear }: { currentYear: number }) {
   const [state, dispatch] = useReducer(slideshowReducer, initialState);
   const { currentIndex, isLoaded, displayedCredit, creditVisible } = state;
   const reducedMotion = useSyncExternalStore(
@@ -187,7 +186,7 @@ export default function HomeClient() {
         </div>
         <div className="flex flex-col items-start gap-1 md:flex-row md:items-end md:justify-between">
           <span className="text-xs text-white/30">
-            sota.llc · {CURRENT_YEAR}
+            sota.llc · {currentYear}
           </span>
           <a
             href={displayedCredit.creditLink}

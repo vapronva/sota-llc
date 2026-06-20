@@ -335,7 +335,7 @@ function useNoiseFrame({
       zoomRef.current.slideStartTime = elapsed;
       isFirstFrameRef.current = false;
     }
-    u.uTime.value = elapsed;
+    u.uTime.value = elapsed % 1000;
     u.uResolution.value.set(size.width, size.height);
     if (!reducedMotion) {
       const po = pointerOverrideRef.current;

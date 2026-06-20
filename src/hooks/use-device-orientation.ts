@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 
 interface DeviceOrientationState {
   x: number;
@@ -14,11 +14,11 @@ export function useDeviceOrientation(): DeviceOrientationState {
     y: 0,
     supported: false,
   });
-  const handlerRef = useRef<((event: DeviceOrientationEvent) => void) | null>(
-    null,
-  );
   useEffect(() => {
-    handlerRef.current = (event: DeviceOrientationEvent) => {
+    if (typeof DeviceOrientationEvent === "undefined") return;
+    if (!window.matchMedia("(hover: none) and (pointer: coarse)").matches)
+      return;
+    const handleOrientation = (event: DeviceOrientationEvent) => {
       const gamma = event.gamma;
       const beta = event.beta;
       if (gamma == null || beta == null) return;
@@ -31,21 +31,15 @@ export function useDeviceOrientation(): DeviceOrientationState {
         return { x, y, supported: true };
       });
     };
-  });
-  useEffect(() => {
-    if (typeof DeviceOrientationEvent === "undefined") return;
-    if (!window.matchMedia("(hover: none) and (pointer: coarse)").matches)
-      return;
-    const listener = (event: DeviceOrientationEvent) =>
-      handlerRef.current?.(event);
     const doe = DeviceOrientationEvent as unknown as {
       requestPermission?: () => Promise<"granted" | "denied">;
     };
     if (doe.requestPermission) {
+      let active = true;
       const handleTouch = () => {
         void doe.requestPermission!().then((permission) => {
-          if (permission === "granted") {
-            window.addEventListener("deviceorientation", listener);
+          if (active && permission === "granted") {
+            window.addEventListener("deviceorientation", handleOrientation);
           }
         });
       };
@@ -55,14 +49,16 @@ export function useDeviceOrientation(): DeviceOrientationState {
         passive: true,
       });
       return () => {
+        active = false;
         window.removeEventListener("touchstart", handleTouch, {
           capture: true,
         });
-        window.removeEventListener("deviceorientation", listener);
+        window.removeEventListener("deviceorientation", handleOrientation);
       };
     }
-    window.addEventListener("deviceorientation", listener);
-    return () => window.removeEventListener("deviceorientation", listener);
+    window.addEventListener("deviceorientation", handleOrientation);
+    return () =>
+      window.removeEventListener("deviceorientation", handleOrientation);
   }, []);
   return state;
 }
