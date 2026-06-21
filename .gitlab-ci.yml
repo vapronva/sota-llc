@@ -6,8 +6,8 @@ stages:
   - deploy
 
 include:
-  - component: $CI_SERVER_FQDN/ci/security/bundle@1
   - component: $CI_SERVER_FQDN/ci/component/rules@1
+  - component: $CI_SERVER_FQDN/ci/security/bundle@1
   - component: $CI_SERVER_FQDN/ci/typescript/lint-check@2
   - component: $CI_SERVER_FQDN/ci/typescript/build@2
   - component: $CI_SERVER_FQDN/ci/docker/build-and-scan@4
@@ -15,14 +15,16 @@ include:
       name: frontend
       image: frontend
       tags: latest,$CI_COMMIT_SHA
-      build_args: --secret id=NPM_PROXY_URL,type=env --secret id=NPM_PROXY_USERNAME,type=env --secret id=NPM_PROXY_PASSWORD,type=env --secret id=NODE_ENV,type=env --secret id=SENTRY_AUTH_TOKEN,type=env
+      build_args: --secret id=NODE_ENV,type=env --secret id=SENTRY_AUTH_TOKEN,type=env
   - component: $CI_SERVER_FQDN/ci/helmfile/deploy@1
     inputs:
       working_dir: support/kubernetes
       helmfile_path: support/kubernetes/helmfile.yaml.gotmpl
 
-helmfile deploy:
+build frontend:
   rules: !reference [.ci-rules-default-branch, rules]
+
+helmfile deploy:
   environment:
     name: production
     url: https://sota.llc
