@@ -25,7 +25,11 @@ export function useDeviceOrientation(): DeviceOrientationState {
       const x = Math.max(-1, Math.min(1, gamma / 45));
       const y = Math.max(-1, Math.min(1, (beta - 45) / 45));
       setState((prev) => {
-        if (Math.abs(x - prev.x) <= 0.01 && Math.abs(y - prev.y) <= 0.01) {
+        if (
+          prev.supported &&
+          Math.abs(x - prev.x) <= 0.01 &&
+          Math.abs(y - prev.y) <= 0.01
+        ) {
           return prev;
         }
         return { x, y, supported: true };

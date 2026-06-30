@@ -2,12 +2,16 @@ import type React from "react";
 import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono } from "next/font/google";
 
+import slides from "~/data/slides.json";
 import "~/styles/globals.css";
 
 const jetBrainsMono = JetBrains_Mono({
   subsets: ["latin", "cyrillic", "latin-ext"],
   variable: "--font-jetbrains-mono",
 });
+
+const firstSlideUrl = slides[0]!.url;
+const cdnOrigin = new URL(firstSlideUrl).origin;
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://sota.llc"),
@@ -44,14 +48,10 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <head>
-        <link
-          rel="preconnect"
-          href="https://cdn.engineering"
-          crossOrigin="anonymous"
-        />
+        <link rel="preconnect" href={cdnOrigin} crossOrigin="anonymous" />
         <link
           rel="preload"
-          href="https://cdn.engineering/hidetohyde/pixiv/130823834_p1.jpg"
+          href={firstSlideUrl}
           as="image"
           crossOrigin="anonymous"
         />

@@ -103,7 +103,6 @@ function getTextureAspect(texture: Texture | null): number {
 
 function useSlideTextures(
   slideUrls: string[],
-  slidesKey: string,
   onTextureLoaded: () => void,
   onAllTexturesLoaded: () => void,
 ): Texture[] {
@@ -129,17 +128,6 @@ function useSlideTextures(
     [slideUrls],
   );
   useEffect(() => {
-    if (slideUrls.length === 0) {
-      if (!hasInitialSignalRef.current) {
-        hasInitialSignalRef.current = true;
-        onLoadedRef.current();
-      }
-      if (!hasAllSignalRef.current) {
-        hasAllSignalRef.current = true;
-        onAllLoadedRef.current();
-      }
-      return;
-    }
     const loader = new TextureLoader();
     loader.crossOrigin = "anonymous";
     const renderer = gl as typeof gl & {
@@ -214,7 +202,7 @@ function useSlideTextures(
     };
   }, [gl, slideUrls, textures]);
   useEffect(() => {
-    if (slideUrls.length === 0 || hasInitialSignalRef.current) return;
+    if (hasInitialSignalRef.current) return;
     const timeout = setTimeout(() => {
       if (!hasInitialSignalRef.current) {
         hasInitialSignalRef.current = true;
@@ -222,9 +210,9 @@ function useSlideTextures(
       }
     }, FIRST_TEXTURE_FALLBACK_MS);
     return () => clearTimeout(timeout);
-  }, [slidesKey, slideUrls.length]);
+  }, []);
   useEffect(() => {
-    if (slideUrls.length === 0 || hasAllSignalRef.current) return;
+    if (hasAllSignalRef.current) return;
     const timeout = setTimeout(() => {
       if (!hasAllSignalRef.current) {
         hasAllSignalRef.current = true;
@@ -232,7 +220,7 @@ function useSlideTextures(
       }
     }, ALL_TEXTURES_FALLBACK_MS);
     return () => clearTimeout(timeout);
-  }, [slidesKey, slideUrls.length]);
+  }, []);
   useEffect(
     () => () => {
       textures.forEach((texture) => texture.dispose());
@@ -407,7 +395,6 @@ function useNoiseFrame({
 
 interface NoisePlaneProps {
   slideUrls: string[];
-  slidesKey: string;
   currentIndex: number;
   slideDurationMs: number;
   transitionDurationMs: number;
@@ -419,7 +406,6 @@ interface NoisePlaneProps {
 
 function NoisePlane({
   slideUrls,
-  slidesKey,
   currentIndex,
   slideDurationMs,
   transitionDurationMs,
@@ -430,7 +416,6 @@ function NoisePlane({
 }: NoisePlaneProps) {
   const textures = useSlideTextures(
     slideUrls,
-    slidesKey,
     onTextureLoaded,
     onAllTexturesLoaded,
   );
@@ -470,7 +455,6 @@ export function NoiseScene({
   pointerOverride,
 }: NoiseSceneProps) {
   const slideUrls = useMemo(() => slides.map((slide) => slide.url), [slides]);
-  const slidesKey = useMemo(() => slideUrls.join("\0"), [slideUrls]);
   return (
     <Canvas
       className="absolute inset-0"
@@ -480,9 +464,7 @@ export function NoiseScene({
       dpr={1}
     >
       <NoisePlane
-        key={slidesKey}
         slideUrls={slideUrls}
-        slidesKey={slidesKey}
         currentIndex={currentIndex}
         slideDurationMs={slideDurationMs}
         transitionDurationMs={transitionDurationMs}

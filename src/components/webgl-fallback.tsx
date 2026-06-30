@@ -1,6 +1,7 @@
 "use client";
 
-import { Component, type ReactNode } from "react";
+import * as Sentry from "@sentry/nextjs";
+import { Component, type ErrorInfo, type ReactNode } from "react";
 
 interface Props {
   fallback: ReactNode;
@@ -17,7 +18,10 @@ export class WebGLErrorBoundary extends Component<Props, State> {
   static getDerivedStateFromError(): State {
     return { hasError: true };
   }
-  override componentDidCatch() {
+  override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    Sentry.captureException(error, {
+      contexts: { react: { componentStack: errorInfo.componentStack } },
+    });
     this.props.onError?.();
   }
   override render() {
