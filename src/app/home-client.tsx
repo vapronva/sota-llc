@@ -25,12 +25,14 @@ type SlideshowState = {
   displayedCredit: SlideData;
   creditVisible: boolean;
   webglFailed: boolean;
+  failedSlides: number[];
 };
 
 type SlideshowAction =
   | { type: "texturesReady" }
-  | { type: "transitionStart"; nextIndex: number }
-  | { type: "creditSettled"; credit: SlideData }
+  | { type: "advance" }
+  | { type: "creditSettled" }
+  | { type: "slideFailed"; index: number }
   | { type: "webglFailed" };
 
 const initialState: SlideshowState = {
@@ -39,7 +41,16 @@ const initialState: SlideshowState = {
   displayedCredit: slides[0]!,
   creditVisible: true,
   webglFailed: false,
+  failedSlides: [],
 };
+
+function nextLoadableIndex(current: number, failedSlides: number[]): number {
+  for (let step = 1; step <= slides.length; step++) {
+    const candidate = (current + step) % slides.length;
+    if (!failedSlides.includes(candidate)) return candidate;
+  }
+  return current;
+}
 
 function slideshowReducer(
   state: SlideshowState,
@@ -48,33 +59,47 @@ function slideshowReducer(
   switch (action.type) {
     case "texturesReady":
       return state.isLoaded ? state : { ...state, isLoaded: true };
-    case "transitionStart":
-      return {
-        ...state,
-        currentIndex: action.nextIndex,
-        creditVisible: false,
-      };
+    case "advance": {
+      const nextIndex = nextLoadableIndex(
+        state.currentIndex,
+        state.failedSlides,
+      );
+      if (nextIndex === state.currentIndex) return state;
+      return { ...state, currentIndex: nextIndex, creditVisible: false };
+    }
     case "creditSettled":
       return {
         ...state,
-        displayedCredit: action.credit,
+        displayedCredit: slides[state.currentIndex] ?? state.displayedCredit,
         creditVisible: true,
       };
+    case "slideFailed":
+      return state.failedSlides.includes(action.index)
+        ? state
+        : { ...state, failedSlides: [...state.failedSlides, action.index] };
     case "webglFailed":
-      return { ...state, webglFailed: true };
+      return {
+        ...state,
+        webglFailed: true,
+        displayedCredit: slides[state.currentIndex] ?? state.displayedCredit,
+        creditVisible: true,
+      };
   }
 }
 
 const reducedMotionQuery = "(prefers-reduced-motion: reduce)";
 
+let reducedMotionMql: MediaQueryList | undefined;
+const getReducedMotionMql = () =>
+  (reducedMotionMql ??= window.matchMedia(reducedMotionQuery));
+
 function subscribeReducedMotion(onChange: () => void) {
-  const mql = window.matchMedia(reducedMotionQuery);
+  const mql = getReducedMotionMql();
   mql.addEventListener("change", onChange);
   return () => mql.removeEventListener("change", onChange);
 }
 
-const getReducedMotionSnapshot = () =>
-  window.matchMedia(reducedMotionQuery).matches;
+const getReducedMotionSnapshot = () => getReducedMotionMql().matches;
 
 const getReducedMotionServer = () => false;
 
@@ -83,16 +108,15 @@ let webglSupportCache: boolean | null = null;
 const subscribeWebGLSupport = () => () => undefined;
 
 const getWebGLSupportSnapshot = (): boolean | null => {
-  if (webglSupportCache === null) {
-    try {
-      const canvas = document.createElement("canvas");
-      webglSupportCache = !!(
-        window.WebGLRenderingContext &&
-        (canvas.getContext("webgl2") ?? canvas.getContext("webgl"))
-      );
-    } catch {
-      webglSupportCache = false;
-    }
+  if (webglSupportCache !== null) return webglSupportCache;
+  try {
+    const canvas = document.createElement("canvas");
+    webglSupportCache = Boolean(
+      window.WebGLRenderingContext &&
+      (canvas.getContext("webgl2") ?? canvas.getContext("webgl")),
+    );
+  } catch {
+    webglSupportCache = false;
   }
   return webglSupportCache;
 };
@@ -119,7 +143,6 @@ export default function HomeClient({ currentYear }: { currentYear: number }) {
     getWebGLSupportServer,
   );
   const orientation = useDeviceOrientation();
-  const currentIndexRef = useRef(0);
   const creditTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const slideshowIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
     null,
@@ -145,12 +168,10 @@ export default function HomeClient({ currentYear }: { currentYear: number }) {
       return;
     }
     slideshowIntervalRef.current = setInterval(() => {
-      const nextIndex = (currentIndexRef.current + 1) % slides.length;
-      currentIndexRef.current = nextIndex;
-      dispatch({ type: "transitionStart", nextIndex });
+      dispatch({ type: "advance" });
       if (creditTimeoutRef.current) clearTimeout(creditTimeoutRef.current);
       creditTimeoutRef.current = setTimeout(() => {
-        dispatch({ type: "creditSettled", credit: slides[nextIndex]! });
+        dispatch({ type: "creditSettled" });
       }, CREDIT_TRANSITION_DURATION / 2);
     }, SLIDE_DURATION);
   }, []);
@@ -162,6 +183,10 @@ export default function HomeClient({ currentYear }: { currentYear: number }) {
     allTexturesLoadedRef.current = true;
     startSlideshow();
   }, [startSlideshow]);
+  const handleSlideError = useCallback(
+    (index: number) => dispatch({ type: "slideFailed", index }),
+    [],
+  );
   const handleWebglError = useCallback(() => {
     teardownSlideshow();
     allTexturesLoadedRef.current = false;
@@ -172,10 +197,7 @@ export default function HomeClient({ currentYear }: { currentYear: number }) {
     if (reducedMotion) {
       teardownSlideshow();
       const rafId = requestAnimationFrame(() => {
-        dispatch({
-          type: "creditSettled",
-          credit: slides[currentIndexRef.current]!,
-        });
+        dispatch({ type: "creditSettled" });
       });
       return () => cancelAnimationFrame(rafId);
     }
@@ -186,9 +208,12 @@ export default function HomeClient({ currentYear }: { currentYear: number }) {
   useEffect(() => teardownSlideshow, [teardownSlideshow]);
   const inFallback = webglFailed || webglSupported === false;
   const revealed = isLoaded || inFallback;
-  const webglFallback = <div className="bg-background absolute inset-0" />;
+  const webglFallback = <div className="grain-overlay absolute inset-0" />;
   return (
-    <main className="bg-background fixed inset-0 touch-none overflow-hidden">
+    <main className="bg-background fixed inset-0 touch-pinch-zoom overflow-hidden">
+      <noscript>
+        <style>{`[data-reveal] { opacity: 1 !important; }`}</style>
+      </noscript>
       <div
         aria-hidden="true"
         className={`absolute inset-0 transition-opacity duration-1000 ${revealed ? "opacity-100" : "opacity-0"}`}
@@ -207,17 +232,18 @@ export default function HomeClient({ currentYear }: { currentYear: number }) {
               transitionDurationMs={TRANSITION_DURATION}
               onTextureLoaded={handleTextureLoaded}
               onAllTexturesLoaded={handleAllTexturesLoaded}
+              onSlideError={handleSlideError}
+              onContextLost={handleWebglError}
               reducedMotion={reducedMotion}
               pointerOverride={
-                orientation.supported
-                  ? { x: orientation.x, y: orientation.y }
-                  : undefined
+                orientation.isSupported ? orientation.positionRef : undefined
               }
             />
           </WebGLErrorBoundary>
         ) : null}
       </div>
       <div
+        data-reveal
         className={`pointer-events-none absolute inset-0 z-10 flex flex-col justify-between p-4 transition-opacity delay-300 duration-1000 md:p-6 lg:p-8 ${revealed ? "opacity-100" : "opacity-0"}`}
       >
         <div className="space-y-2">
@@ -229,19 +255,19 @@ export default function HomeClient({ currentYear }: { currentYear: number }) {
           </p>
         </div>
         <div className="flex flex-col items-start gap-1 md:flex-row md:items-end md:justify-between">
-          <span className="text-xs text-white/30">
+          <span className="text-xs text-white/50">
             sota.llc · {currentYear}
           </span>
-          {!inFallback && (
-            <a
-              href={displayedCredit.creditLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`pointer-events-auto transform-gpu text-[10px] text-white/15 transition-opacity duration-1000 backface-hidden hover:text-white/30 md:text-xs ${creditVisible ? "opacity-100" : "opacity-0"}`}
-            >
-              {displayedCredit.credit}
-            </a>
-          )}
+          <a
+            href={displayedCredit.creditLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            lang="en"
+            aria-live="polite"
+            className={`pointer-events-auto -m-2 transform-gpu p-2 text-[10px] text-white/50 transition-[opacity,visibility] duration-1000 backface-hidden hover:text-white/80 focus-visible:text-white/80 md:text-xs ${creditVisible ? "visible opacity-100" : "invisible opacity-0"}`}
+          >
+            {displayedCredit.credit}
+          </a>
         </div>
       </div>
     </main>

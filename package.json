@@ -3,9 +3,10 @@
   "version": "1.6.2",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@11.10.0",
   "scripts": {
     "build": "next build",
-    "check": "next typegen && eslint . && tsc --noEmit",
+    "check": "next typegen && eslint . --cache && tsc --noEmit",
     "dev": "next dev",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx,mjs,cjs,json,yaml,yml}\" --cache",
     "format:write": "prettier --write \"**/*.{ts,tsx,js,jsx,mdx,mjs,cjs,json,yaml,yml}\" --cache",
@@ -17,17 +18,17 @@
   },
   "dependencies": {
     "@react-three/fiber": "^9.6.1",
-    "@sentry/nextjs": "^10.62.0",
-    "next": "^16.2.9",
+    "@sentry/nextjs": "^10.64.0",
+    "next": "^16.2.10",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "three": "^0.184.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@next/eslint-plugin-next": "^16.2.9",
-    "@tailwindcss/postcss": "^4.3.1",
-    "@types/node": "^26.0.1",
+    "@next/eslint-plugin-next": "^16.2.10",
+    "@tailwindcss/postcss": "^4.3.2",
+    "@types/node": "^26.1.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@types/three": "^0.184.1",
@@ -35,10 +36,10 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "jiti": "^2.7.0",
     "postcss": "^8.5.16",
-    "prettier": "^3.9.1",
+    "prettier": "^3.9.5",
     "prettier-plugin-tailwindcss": "^0.8.0",
-    "tailwindcss": "^4.3.1",
+    "tailwindcss": "^4.3.2",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.62.0"
+    "typescript-eslint": "^8.63.0"
   }
 }

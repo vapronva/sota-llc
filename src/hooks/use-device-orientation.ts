@@ -1,51 +1,53 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 
-interface DeviceOrientationState {
+export interface OrientationPosition {
   x: number;
   y: number;
-  supported: boolean;
 }
 
-export function useDeviceOrientation(): DeviceOrientationState {
-  const [state, setState] = useState<DeviceOrientationState>({
-    x: 0,
-    y: 0,
-    supported: false,
-  });
+const clamp = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, value));
+
+export function useDeviceOrientation(): {
+  positionRef: React.RefObject<OrientationPosition | null>;
+  isSupported: boolean;
+} {
+  const positionRef = useRef<OrientationPosition | null>(null);
+  const [isSupported, setIsSupported] = useState(false);
   useEffect(() => {
     if (typeof DeviceOrientationEvent === "undefined") return;
     if (!window.matchMedia("(hover: none) and (pointer: coarse)").matches)
       return;
+    let hasSignaledSupport = false;
     const handleOrientation = (event: DeviceOrientationEvent) => {
-      const gamma = event.gamma;
-      const beta = event.beta;
+      const { gamma, beta } = event;
       if (gamma == null || beta == null) return;
-      const x = Math.max(-1, Math.min(1, gamma / 45));
-      const y = Math.max(-1, Math.min(1, (beta - 45) / 45));
-      setState((prev) => {
-        if (
-          prev.supported &&
-          Math.abs(x - prev.x) <= 0.01 &&
-          Math.abs(y - prev.y) <= 0.01
-        ) {
-          return prev;
-        }
-        return { x, y, supported: true };
-      });
+      positionRef.current = {
+        x: clamp(gamma / 45, -1, 1),
+        y: clamp((beta - 45) / 45, -1, 1),
+      };
+      if (!hasSignaledSupport) {
+        hasSignaledSupport = true;
+        setIsSupported(true);
+      }
     };
-    const doe = DeviceOrientationEvent as unknown as {
-      requestPermission?: () => Promise<"granted" | "denied">;
-    };
-    if (doe.requestPermission) {
+    const requestPermission = (
+      DeviceOrientationEvent as unknown as {
+        requestPermission?: () => Promise<"granted" | "denied">;
+      }
+    ).requestPermission;
+    if (requestPermission) {
       let active = true;
       const handleTouch = () => {
-        void doe.requestPermission!().then((permission) => {
-          if (active && permission === "granted") {
-            window.addEventListener("deviceorientation", handleOrientation);
-          }
-        });
+        void requestPermission()
+          .then((permission) => {
+            if (active && permission === "granted") {
+              window.addEventListener("deviceorientation", handleOrientation);
+            }
+          })
+          .catch(() => undefined);
       };
       window.addEventListener("touchstart", handleTouch, {
         capture: true,
@@ -64,5 +66,5 @@ export function useDeviceOrientation(): DeviceOrientationState {
     return () =>
       window.removeEventListener("deviceorientation", handleOrientation);
   }, []);
-  return state;
+  return { positionRef, isSupported };
 }

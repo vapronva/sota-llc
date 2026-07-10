@@ -22,7 +22,12 @@ export default function GlobalError({
     <html lang="ru">
       <head>
         <title>Что-то пошло не так (sota.llc)</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, viewport-fit=cover"
+        />
+        <meta name="theme-color" content="#0a0a0a" />
+        <style>{`button:hover, button:focus-visible { background: rgba(255, 255, 255, 0.15) !important; }`}</style>
       </head>
       <body
         className={jetBrainsMono.className}

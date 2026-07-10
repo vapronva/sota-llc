@@ -40,9 +40,4 @@ export default defineConfig(
       ],
     },
   },
-  {
-    linterOptions: {
-      reportUnusedDisableDirectives: true,
-    },
-  },
 );

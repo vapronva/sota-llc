@@ -2,9 +2,3 @@
 allowBuilds:
   "@sentry/cli": true
   sharp: true
-
-onlyBuiltDependencies:
-  - "@sentry/cli"
-  - "@tailwindcss/oxide"
-  - sharp
-  - unrs-resolver

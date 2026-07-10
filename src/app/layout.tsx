@@ -1,6 +1,7 @@
 import type React from "react";
 import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono } from "next/font/google";
+import { preload } from "react-dom";
 
 import slides from "~/data/slides.json";
 import "~/styles/globals.css";
@@ -11,13 +12,15 @@ const jetBrainsMono = JetBrains_Mono({
 });
 
 const firstSlideUrl = slides[0]!.url;
-const cdnOrigin = new URL(firstSlideUrl).origin;
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://sota.llc"),
   title: "SOTA",
   description: "Мы SOTA… потому что мы SOTA.",
-  icons: [{ rel: "icon", url: "/favicon.ico" }],
+  icons: {
+    icon: [{ url: "/favicon.ico" }],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+  },
   openGraph: {
     title: "SOTA",
     description: "Мы SOTA… потому что мы SOTA.",
@@ -25,9 +28,10 @@ export const metadata: Metadata = {
     siteName: "SOTA",
     type: "website",
     locale: "ru_RU",
+    images: [{ url: "/opengraph-image.png", width: 1200, height: 630 }],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "SOTA",
     description: "Мы SOTA… потому что мы SOTA.",
   },
@@ -45,17 +49,9 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  preload(firstSlideUrl, { as: "image", crossOrigin: "anonymous" });
   return (
     <html lang="ru">
-      <head>
-        <link rel="preconnect" href={cdnOrigin} crossOrigin="anonymous" />
-        <link
-          rel="preload"
-          href={firstSlideUrl}
-          as="image"
-          crossOrigin="anonymous"
-        />
-      </head>
       <body className={`${jetBrainsMono.variable} font-mono antialiased`}>
         {children}
       </body>
