@@ -1,7 +1,11 @@
 .git
+.gitignore
+.gitattributes
+.gitlab-ci.yml
 .next
 node_modules
 .env*
 *.md
 *.tsbuildinfo
+.eslintcache
 support/

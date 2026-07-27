@@ -1,18 +1,26 @@
+ARG TOOLS_IMAGE=docker.horse/ci/on-alpine/tools:1
+
+FROM $TOOLS_IMAGE AS tools
+
 FROM docker.io/library/node:26-alpine AS base
 
-RUN sed --in-place 's!https://dl-cdn.alpinelinux.org/alpine!https://linux.sex/dl-cdn.alpinelinux.org!g' /etc/apk/repositories || true && \
-    apk --verbose update && \
-    apk --verbose upgrade --available && \
-    apk --verbose add ca-certificates tzdata && \
-    update-ca-certificates && \
-    apk cache clean
+ARG MIRROR_ALPINE_URL=""
+
+ARG MIRROR_ALPINE_FALLBACK_URL=""
+
+ARG MIRROR_NPM_URL=""
+
+ARG MIRROR_NPM_FALLBACK_URL=""
+
+COPY --from=tools /usr/local/bin/pkg-base-setup /usr/local/bin/
+
+RUN pkg-base-setup
 
 FROM base AS builder
 
-RUN apk --verbose add git && \
+RUN apk --verbose add --no-cache git && \
     npm install --global pnpm@11 && \
-    npm cache clean --force && \
-    apk cache clean
+    npm cache clean --force
 
 WORKDIR /usr/src/app
 
@@ -37,7 +45,9 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0
 
 COPY --from=builder --chown=node:node /usr/src/app/.next/standalone ./
+
 COPY --from=builder --chown=node:node /usr/src/app/.next/static ./.next/static
+
 COPY --from=builder --chown=node:node /usr/src/app/public ./public
 
 USER node
