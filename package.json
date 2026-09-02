@@ -1,9 +1,9 @@
 {
   "name": "sota-llc",
-  "version": "1.6.3",
+  "version": "1.6.4",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@11.10.0",
+  "packageManager": "pnpm",
   "scripts": {
     "build": "next build",
     "check": "next typegen && eslint . --cache && tsc --noEmit",
@@ -17,29 +17,29 @@
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
-    "@react-three/fiber": "^9.6.1",
-    "@sentry/nextjs": "^10.68.0",
-    "next": "^16.2.12",
+    "@react-three/fiber": "^9.7.0",
+    "@sentry/nextjs": "^10.73.0",
+    "next": "^16.3.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "three": "^0.185.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@next/eslint-plugin-next": "^16.2.12",
+    "@next/eslint-plugin-next": "^16.3.4",
     "@tailwindcss/postcss": "^4.3.3",
-    "@types/node": "^26.1.1",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "@types/three": "^0.185.1",
-    "eslint": "^10.8.0",
+    "@types/node": "^26.4.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "@types/three": "^0.185.4",
+    "eslint": "^10.9.1",
     "eslint-plugin-react-hooks": "^7.1.1",
     "jiti": "^2.7.0",
-    "postcss": "^8.5.23",
+    "postcss": "^8.5.26",
     "prettier": "^3.9.6",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.65.0"
+    "typescript-eslint": "^8.69.0"
   }
 }
