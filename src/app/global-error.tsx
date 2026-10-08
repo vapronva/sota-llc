@@ -1,19 +1,17 @@
 "use client";
 
 import * as Sentry from "@sentry/nextjs";
-import { JetBrains_Mono } from "next/font/google";
 import { useEffect } from "react";
 
-const jetBrainsMono = JetBrains_Mono({
-  subsets: ["latin", "cyrillic", "latin-ext"],
-});
+import { jetBrainsMono } from "~/styles/font";
+import "~/styles/globals.css";
 
 export default function GlobalError({
   error,
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
   useEffect(() => {
     Sentry.captureException(error);
@@ -27,55 +25,26 @@ export default function GlobalError({
           content="width=device-width, initial-scale=1, viewport-fit=cover"
         />
         <meta name="theme-color" content="#0a0a0a" />
-        <style>{`button:hover, button:focus-visible { background: rgba(255, 255, 255, 0.15) !important; }`}</style>
       </head>
-      <body
-        className={jetBrainsMono.className}
-        style={{
-          margin: 0,
-          minHeight: "100vh",
-          display: "grid",
-          placeItems: "center",
-          backgroundColor: "#0a0a0a",
-          color: "#ffffff",
-          padding: "1rem",
-        }}
-      >
-        <main
-          style={{
-            width: "100%",
-            maxWidth: "34rem",
-            textAlign: "center",
-            display: "grid",
-            gap: "1rem",
-          }}
-        >
-          <h1 style={{ margin: 0, fontSize: "1.5rem", lineHeight: 1.3 }}>
-            Произошла ошибка)
-          </h1>
-          <p style={{ margin: 0, opacity: 0.8 }}>
-            Мы уже получили отчёт об ошибке... Вроде...
-          </p>
-          {error.digest ? (
-            <p style={{ margin: 0, fontSize: "0.875rem", opacity: 0.7 }}>
-              ID ошибки: {error.digest}
+      <body className={`${jetBrainsMono.variable} font-mono antialiased`}>
+        <main className="p-safe-4 grid min-h-dvh place-items-center">
+          <div className="grid w-full max-w-lg gap-4 text-center">
+            <h1 className="text-2xl text-white">Произошла ошибка)</h1>
+            <p className="text-white/80">
+              Мы уже получили отчёт об ошибке... Вроде...
             </p>
-          ) : null}
-          <div>
-            <button
-              type="button"
-              onClick={() => reset()}
-              style={{
-                border: "1px solid rgba(255, 255, 255, 0.3)",
-                background: "rgba(255, 255, 255, 0.08)",
-                color: "inherit",
-                borderRadius: "0.5rem",
-                padding: "0.625rem 1rem",
-                cursor: "pointer",
-              }}
-            >
-              Попробовать снова
-            </button>
+            {error.digest ? (
+              <p className="text-sm text-white/70">ID ошибки: {error.digest}</p>
+            ) : null}
+            <div>
+              <button
+                type="button"
+                onClick={() => retry()}
+                className="cursor-pointer rounded-lg border border-white/30 bg-white/8 px-4 py-2.5 text-white hover:bg-white/15 focus-visible:bg-white/15"
+              >
+                Попробовать снова
+              </button>
+            </div>
           </div>
         </main>
       </body>

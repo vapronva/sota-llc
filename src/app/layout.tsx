@@ -1,17 +1,12 @@
-import type React from "react";
 import type { Metadata, Viewport } from "next";
-import { JetBrains_Mono } from "next/font/google";
+import type { ReactNode } from "react";
 import { preload } from "react-dom";
 
 import slides from "~/data/slides.json";
+import { jetBrainsMono } from "~/styles/font";
 import "~/styles/globals.css";
 
-const jetBrainsMono = JetBrains_Mono({
-  subsets: ["latin", "cyrillic", "latin-ext"],
-  variable: "--font-jetbrains-mono",
-});
-
-const firstSlideUrl = slides[0]!.url;
+const [firstSlide] = slides;
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://sota.llc"),
@@ -22,9 +17,7 @@ export const metadata: Metadata = {
     apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
   },
   openGraph: {
-    title: "SOTA",
-    description: "Мы SOTA… потому что мы SOTA.",
-    url: "https://sota.llc",
+    url: "/",
     siteName: "SOTA",
     type: "website",
     locale: "ru_RU",
@@ -32,8 +25,6 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "SOTA",
-    description: "Мы SOTA… потому что мы SOTA.",
   },
 };
 
@@ -47,9 +38,11 @@ export const viewport: Viewport = {
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+  children: ReactNode;
 }>) {
-  preload(firstSlideUrl, { as: "image", crossOrigin: "anonymous" });
+  if (firstSlide) {
+    preload(firstSlide.url, { as: "image", crossOrigin: "anonymous" });
+  }
   return (
     <html lang="ru">
       <body className={`${jetBrainsMono.variable} font-mono antialiased`}>

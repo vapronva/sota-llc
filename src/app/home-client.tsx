@@ -1,251 +1,295 @@
 "use client";
 
+import * as Sentry from "@sentry/nextjs";
+import dynamic from "next/dynamic";
 import {
-  useCallback,
+  type ActionDispatch,
   useEffect,
+  useMemo,
   useReducer,
   useRef,
+  useState,
   useSyncExternalStore,
 } from "react";
 
-import { NoiseScene, type SlideData } from "~/components/noise-scene";
-import { WebGLErrorBoundary } from "~/components/webgl-fallback";
-import slidesData from "~/data/slides.json";
+import slides from "~/data/slides.json";
 import { useDeviceOrientation } from "~/hooks/use-device-orientation";
 
-const slides: SlideData[] = slidesData;
+const NoiseScene = dynamic(
+  () => import("~/components/noise-scene").then((module) => module.NoiseScene),
+  { ssr: false },
+);
 
-const SLIDE_DURATION = 7500;
-const TRANSITION_DURATION = 3500;
-const CREDIT_TRANSITION_DURATION = 2000;
+const SLIDE_DURATION_MS = 7_500;
+const TRANSITION_DURATION_MS = 3_500;
+const FIRST_SLIDE_GRACE_MS = 3_000;
 
-type SlideshowState = {
-  currentIndex: number;
-  isLoaded: boolean;
-  displayedCredit: SlideData;
-  creditVisible: boolean;
-  webglFailed: boolean;
-  failedSlides: number[];
-};
+type SlideImage =
+  | { kind: "pending" }
+  | { kind: "loaded"; image: HTMLImageElement }
+  | { kind: "failed" };
+
+interface SlideshowState {
+  images: SlideImage[];
+  currentIndex: number | null;
+  creditIndex: number | null;
+  isFirstSlideOverdue: boolean;
+  isWebglLost: boolean;
+}
 
 type SlideshowAction =
-  | { type: "texturesReady" }
-  | { type: "advance" }
-  | { type: "creditSettled" }
-  | { type: "slideFailed"; index: number }
-  | { type: "webglFailed" };
+  | { kind: "imageLoaded"; index: number; image: HTMLImageElement }
+  | { kind: "imageFailed"; index: number }
+  | { kind: "advanced" }
+  | { kind: "creditSettled" }
+  | { kind: "firstSlideOverdue" }
+  | { kind: "webglLost" };
 
 const initialState: SlideshowState = {
-  currentIndex: 0,
-  isLoaded: false,
-  displayedCredit: slides[0]!,
-  creditVisible: true,
-  webglFailed: false,
-  failedSlides: [],
+  images: slides.map(() => ({ kind: "pending" })),
+  currentIndex: null,
+  creditIndex: null,
+  isFirstSlideOverdue: false,
+  isWebglLost: false,
 };
 
-function nextLoadableIndex(current: number, failedSlides: number[]): number {
-  for (let step = 1; step <= slides.length; step++) {
-    const candidate = (current + step) % slides.length;
-    if (!failedSlides.includes(candidate)) return candidate;
+function replaceImage(images: SlideImage[], index: number, image: SlideImage) {
+  return images.map((current, i) => (i === index ? image : current));
+}
+
+function findNextLoadedIndex(images: SlideImage[], fromIndex: number) {
+  for (let step = 1; step < images.length; step++) {
+    const index = (fromIndex + step) % images.length;
+    if (images[index]?.kind === "loaded") return index;
   }
-  return current;
+  return null;
 }
 
 function slideshowReducer(
   state: SlideshowState,
   action: SlideshowAction,
 ): SlideshowState {
-  switch (action.type) {
-    case "texturesReady":
-      return state.isLoaded ? state : { ...state, isLoaded: true };
-    case "advance": {
-      const nextIndex = nextLoadableIndex(
-        state.currentIndex,
-        state.failedSlides,
-      );
-      if (nextIndex === state.currentIndex) return state;
-      return { ...state, currentIndex: nextIndex, creditVisible: false };
+  switch (action.kind) {
+    case "imageLoaded": {
+      const images = replaceImage(state.images, action.index, {
+        kind: "loaded",
+        image: action.image,
+      });
+      if (state.currentIndex !== null) return { ...state, images };
+      return {
+        ...state,
+        images,
+        currentIndex: action.index,
+        creditIndex: action.index,
+      };
+    }
+    case "imageFailed":
+      return {
+        ...state,
+        images: replaceImage(state.images, action.index, { kind: "failed" }),
+      };
+    case "advanced": {
+      if (state.currentIndex === null) return state;
+      const nextIndex = findNextLoadedIndex(state.images, state.currentIndex);
+      return nextIndex === null ? state : { ...state, currentIndex: nextIndex };
     }
     case "creditSettled":
-      return {
-        ...state,
-        displayedCredit: slides[state.currentIndex] ?? state.displayedCredit,
-        creditVisible: true,
-      };
-    case "slideFailed":
-      return state.failedSlides.includes(action.index)
-        ? state
-        : { ...state, failedSlides: [...state.failedSlides, action.index] };
-    case "webglFailed":
-      return {
-        ...state,
-        webglFailed: true,
-        displayedCredit: slides[state.currentIndex] ?? state.displayedCredit,
-        creditVisible: true,
-      };
+      return { ...state, creditIndex: state.currentIndex };
+    case "firstSlideOverdue":
+      return { ...state, isFirstSlideOverdue: true };
+    case "webglLost":
+      return { ...state, isWebglLost: true };
   }
 }
 
-const reducedMotionQuery = "(prefers-reduced-motion: reduce)";
+function listSlidesToLoad({
+  images,
+  isFirstSlideOverdue,
+  isReducedMotion,
+}: {
+  images: SlideImage[];
+  isFirstSlideOverdue: boolean;
+  isReducedMotion: boolean;
+}) {
+  if (isReducedMotion) {
+    const index = images.findIndex((image) => image.kind !== "failed");
+    return index === -1 ? [] : [index];
+  }
+  if (images[0]?.kind === "pending" && !isFirstSlideOverdue) return [0];
+  return images.map((_, index) => index);
+}
 
-let reducedMotionMql: MediaQueryList | undefined;
-const getReducedMotionMql = () =>
-  (reducedMotionMql ??= window.matchMedia(reducedMotionQuery));
+function loadSlideImage(url: string) {
+  const image = new Image();
+  image.crossOrigin = "anonymous";
+  image.src = url;
+  return image.decode().then(() => image);
+}
+
+let reducedMotionQuery: MediaQueryList | undefined;
+const getReducedMotionQuery = () =>
+  (reducedMotionQuery ??= window.matchMedia(
+    "(prefers-reduced-motion: reduce)",
+  ));
 
 function subscribeReducedMotion(onChange: () => void) {
-  const mql = getReducedMotionMql();
-  mql.addEventListener("change", onChange);
-  return () => mql.removeEventListener("change", onChange);
+  const query = getReducedMotionQuery();
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
 }
 
-const getReducedMotionSnapshot = () => getReducedMotionMql().matches;
+function useIsReducedMotion() {
+  return useSyncExternalStore(
+    subscribeReducedMotion,
+    () => getReducedMotionQuery().matches,
+    () => false,
+  );
+}
 
-const getReducedMotionServer = () => false;
+let webglSupportCache: boolean | undefined;
 
-let webglSupportCache: boolean | null = null;
-
-const subscribeWebGLSupport = () => () => undefined;
-
-const getWebGLSupportSnapshot = (): boolean | null => {
-  if (webglSupportCache !== null) return webglSupportCache;
+function detectWebglSupport() {
   try {
-    const canvas = document.createElement("canvas");
-    webglSupportCache = Boolean(
-      window.WebGLRenderingContext &&
-      (canvas.getContext("webgl2") ?? canvas.getContext("webgl")),
-    );
+    const context = document.createElement("canvas").getContext("webgl2");
+    context?.getExtension("WEBGL_lose_context")?.loseContext();
+    return context !== null;
   } catch {
-    webglSupportCache = false;
+    return false;
   }
-  return webglSupportCache;
-};
+}
 
-const getWebGLSupportServer = (): boolean | null => null;
+const subscribeNever = () => () => undefined;
+
+function useWebglSupport() {
+  return useSyncExternalStore(
+    subscribeNever,
+    () => (webglSupportCache ??= detectWebglSupport()),
+    () => null,
+  );
+}
+
+function useSlideLoading({
+  images,
+  isFirstSlideOverdue,
+  isReducedMotion,
+  isEnabled,
+  dispatch,
+}: {
+  images: SlideImage[];
+  isFirstSlideOverdue: boolean;
+  isReducedMotion: boolean;
+  isEnabled: boolean;
+  dispatch: ActionDispatch<[SlideshowAction]>;
+}) {
+  const requestedSlidesRef = useRef(new Set<number>());
+  useEffect(() => {
+    if (!isEnabled) return;
+    const indexesToLoad = listSlidesToLoad({
+      images,
+      isFirstSlideOverdue,
+      isReducedMotion,
+    });
+    const requested = requestedSlidesRef.current;
+    slides.forEach(({ url }, index) => {
+      if (!indexesToLoad.includes(index) || requested.has(index)) return;
+      requested.add(index);
+      loadSlideImage(url).then(
+        (image) => dispatch({ kind: "imageLoaded", index, image }),
+        () => {
+          Sentry.captureMessage("Failed to load slide image", {
+            level: "error",
+            extra: { url },
+          });
+          dispatch({ kind: "imageFailed", index });
+        },
+      );
+    });
+  }, [images, isFirstSlideOverdue, isReducedMotion, isEnabled, dispatch]);
+  useEffect(() => {
+    if (!isEnabled) return;
+    const timeout = setTimeout(
+      () => dispatch({ kind: "firstSlideOverdue" }),
+      FIRST_SLIDE_GRACE_MS,
+    );
+    return () => clearTimeout(timeout);
+  }, [isEnabled, dispatch]);
+}
 
 export default function HomeClient({ currentYear }: { currentYear: number }) {
   const [state, dispatch] = useReducer(slideshowReducer, initialState);
-  const {
-    currentIndex,
-    isLoaded,
-    displayedCredit,
-    creditVisible,
-    webglFailed,
-  } = state;
-  const reducedMotion = useSyncExternalStore(
-    subscribeReducedMotion,
-    getReducedMotionSnapshot,
-    getReducedMotionServer,
+  const { images, currentIndex, creditIndex, isFirstSlideOverdue } = state;
+  const isReducedMotion = useIsReducedMotion();
+  const webglSupport = useWebglSupport();
+  const [isCreditHovered, setIsCreditHovered] = useState(false);
+  const [isCreditFocused, setIsCreditFocused] = useState(false);
+  const isSceneEnabled =
+    webglSupport === true &&
+    !state.isWebglLost &&
+    images.some((image) => image.kind !== "failed");
+  const isFallback = webglSupport !== null && !isSceneEnabled;
+  const tiltRef = useDeviceOrientation(isSceneEnabled && !isReducedMotion);
+  const loadedImages = useMemo(
+    () =>
+      images.flatMap((image) => (image.kind === "loaded" ? image.image : [])),
+    [images],
   );
-  const webglSupported = useSyncExternalStore(
-    subscribeWebGLSupport,
-    getWebGLSupportSnapshot,
-    getWebGLSupportServer,
-  );
-  const orientation = useDeviceOrientation();
-  const creditTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const slideshowIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
-    null,
-  );
-  const allTexturesLoadedRef = useRef(false);
-  const reducedMotionRef = useRef(reducedMotion);
-  const teardownSlideshow = useCallback(() => {
-    if (slideshowIntervalRef.current) {
-      clearInterval(slideshowIntervalRef.current);
-      slideshowIntervalRef.current = null;
-    }
-    if (creditTimeoutRef.current) {
-      clearTimeout(creditTimeoutRef.current);
-      creditTimeoutRef.current = null;
-    }
-  }, []);
-  const startSlideshow = useCallback(() => {
-    if (
-      slideshowIntervalRef.current ||
-      slides.length <= 1 ||
-      reducedMotionRef.current
-    ) {
-      return;
-    }
-    slideshowIntervalRef.current = setInterval(() => {
-      dispatch({ type: "advance" });
-      if (creditTimeoutRef.current) clearTimeout(creditTimeoutRef.current);
-      creditTimeoutRef.current = setTimeout(() => {
-        dispatch({ type: "creditSettled" });
-      }, CREDIT_TRANSITION_DURATION / 2);
-    }, SLIDE_DURATION);
-  }, []);
-  const handleTextureLoaded = useCallback(
-    () => dispatch({ type: "texturesReady" }),
-    [],
-  );
-  const handleAllTexturesLoaded = useCallback(() => {
-    allTexturesLoadedRef.current = true;
-    startSlideshow();
-  }, [startSlideshow]);
-  const handleSlideError = useCallback(
-    (index: number) => dispatch({ type: "slideFailed", index }),
-    [],
-  );
-  const handleWebglError = useCallback(() => {
-    teardownSlideshow();
-    allTexturesLoadedRef.current = false;
-    dispatch({ type: "webglFailed" });
-  }, [teardownSlideshow]);
+  const currentSlide = currentIndex === null ? undefined : images[currentIndex];
+  const currentImage =
+    currentSlide?.kind === "loaded" ? currentSlide.image : undefined;
+  const canAdvance =
+    isSceneEnabled &&
+    !isReducedMotion &&
+    !isCreditHovered &&
+    !isCreditFocused &&
+    currentIndex !== null &&
+    findNextLoadedIndex(images, currentIndex) !== null;
+  const credit = slides[creditIndex ?? 0];
+  const isCreditVisible =
+    isSceneEnabled && creditIndex !== null && creditIndex === currentIndex;
+  useSlideLoading({
+    images,
+    isFirstSlideOverdue,
+    isReducedMotion,
+    isEnabled: isSceneEnabled,
+    dispatch,
+  });
   useEffect(() => {
-    reducedMotionRef.current = reducedMotion;
-    if (reducedMotion) {
-      teardownSlideshow();
-      const rafId = requestAnimationFrame(() => {
-        dispatch({ type: "creditSettled" });
-      });
-      return () => cancelAnimationFrame(rafId);
-    }
-    if (allTexturesLoadedRef.current) {
-      startSlideshow();
-    }
-  }, [reducedMotion, startSlideshow, teardownSlideshow]);
-  useEffect(() => teardownSlideshow, [teardownSlideshow]);
-  const inFallback = webglFailed || webglSupported === false;
-  const revealed = isLoaded || inFallback;
-  const webglFallback = <div className="grain-overlay absolute inset-0" />;
+    if (!canAdvance) return;
+    const timeout = setTimeout(
+      () => dispatch({ kind: "advanced" }),
+      SLIDE_DURATION_MS,
+    );
+    return () => clearTimeout(timeout);
+  }, [canAdvance, currentIndex]);
+  useEffect(() => {
+    if (creditIndex === currentIndex) return;
+    const timeout = setTimeout(
+      () => dispatch({ kind: "creditSettled" }),
+      isReducedMotion ? 0 : TRANSITION_DURATION_MS / 2,
+    );
+    return () => clearTimeout(timeout);
+  }, [creditIndex, currentIndex, isReducedMotion]);
   return (
     <main className="bg-background fixed inset-0 touch-pinch-zoom overflow-hidden">
-      <noscript>
-        <style>{`[data-reveal] { opacity: 1 !important; }`}</style>
-      </noscript>
-      <div
-        aria-hidden="true"
-        className={`absolute inset-0 transition-opacity duration-1000 ${revealed ? "opacity-100" : "opacity-0"}`}
-      >
-        {inFallback ? (
-          webglFallback
-        ) : webglSupported ? (
-          <WebGLErrorBoundary
-            fallback={webglFallback}
-            onError={handleWebglError}
-          >
+      <div aria-hidden="true" className="absolute inset-0">
+        {isFallback ? (
+          <div className="grain-overlay animate-fade-in absolute inset-0" />
+        ) : null}
+        {isSceneEnabled ? (
+          <Sentry.ErrorBoundary onError={() => dispatch({ kind: "webglLost" })}>
             <NoiseScene
-              slides={slides}
-              currentIndex={currentIndex}
-              slideDurationMs={SLIDE_DURATION}
-              transitionDurationMs={TRANSITION_DURATION}
-              onTextureLoaded={handleTextureLoaded}
-              onAllTexturesLoaded={handleAllTexturesLoaded}
-              onSlideError={handleSlideError}
-              onContextLost={handleWebglError}
-              reducedMotion={reducedMotion}
-              pointerOverride={
-                orientation.isSupported ? orientation.positionRef : undefined
-              }
+              images={loadedImages}
+              currentImage={currentImage}
+              slideDurationMs={SLIDE_DURATION_MS}
+              transitionDurationMs={TRANSITION_DURATION_MS}
+              isReducedMotion={isReducedMotion}
+              tiltRef={tiltRef}
+              onContextLost={() => dispatch({ kind: "webglLost" })}
             />
-          </WebGLErrorBoundary>
+          </Sentry.ErrorBoundary>
         ) : null}
       </div>
-      <div
-        data-reveal
-        className={`pointer-events-none absolute inset-0 z-10 flex flex-col justify-between p-4 transition-opacity delay-300 duration-1000 md:p-6 lg:p-8 ${revealed ? "opacity-100" : "opacity-0"}`}
-      >
+      <div className="p-safe-4 md:p-safe-6 lg:p-safe-8 animate-fade-in pointer-events-none absolute inset-0 z-10 flex flex-col justify-between">
         <div className="space-y-2">
           <h1 className="text-5xl tracking-tighter text-white md:text-7xl lg:text-8xl">
             SOTA
@@ -258,16 +302,22 @@ export default function HomeClient({ currentYear }: { currentYear: number }) {
           <span className="text-xs text-white/50">
             sota.llc · {currentYear}
           </span>
-          <a
-            href={displayedCredit.creditLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            lang="en"
-            aria-live="polite"
-            className={`pointer-events-auto -m-2 transform-gpu p-2 text-[10px] text-white/50 transition-[opacity,visibility] duration-1000 backface-hidden hover:text-white/80 focus-visible:text-white/80 md:text-xs ${creditVisible ? "visible opacity-100" : "invisible opacity-0"}`}
-          >
-            {displayedCredit.credit}
-          </a>
+          {credit ? (
+            <a
+              href={credit.creditLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              lang="en"
+              onPointerEnter={() => setIsCreditHovered(true)}
+              onPointerLeave={() => setIsCreditHovered(false)}
+              onFocus={() => setIsCreditFocused(true)}
+              onBlur={() => setIsCreditFocused(false)}
+              style={{ transitionDuration: `${TRANSITION_DURATION_MS / 2}ms` }}
+              className={`pointer-events-auto -m-2 transform-gpu p-2 text-[10px] text-white/50 transition-[opacity,visibility] backface-hidden hover:text-white/80 focus-visible:text-white/80 md:text-xs ${isCreditVisible ? "visible opacity-100" : "invisible opacity-0"}`}
+            >
+              {credit.credit}
+            </a>
+          ) : null}
         </div>
       </div>
     </main>

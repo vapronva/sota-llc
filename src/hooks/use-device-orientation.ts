@@ -1,70 +1,69 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
-export interface OrientationPosition {
+export interface TiltPosition {
   x: number;
   y: number;
 }
 
-const clamp = (value: number, min: number, max: number) =>
-  Math.max(min, Math.min(max, value));
+type PermissionedOrientationEvent = typeof DeviceOrientationEvent & {
+  requestPermission?: () => Promise<"granted" | "denied">;
+};
 
-export function useDeviceOrientation(): {
-  positionRef: React.RefObject<OrientationPosition | null>;
-  isSupported: boolean;
-} {
-  const positionRef = useRef<OrientationPosition | null>(null);
-  const [isSupported, setIsSupported] = useState(false);
+const MAX_TILT_DEG = 45;
+const NEUTRAL_PITCH_DEG = 45;
+
+const clampUnit = (value: number) => Math.max(-1, Math.min(1, value));
+
+function toScreenTilt(beta: number, gamma: number, screenAngleDeg: number) {
+  if (screenAngleDeg === 90) return { x: beta, y: -gamma };
+  if (screenAngleDeg === 180) return { x: -gamma, y: -beta };
+  if (screenAngleDeg === 270) return { x: -beta, y: gamma };
+  return { x: gamma, y: beta };
+}
+
+function isTouchOnlyDevice() {
+  return window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+}
+
+export function useDeviceOrientation(isEnabled: boolean) {
+  const tiltRef = useRef<TiltPosition | null>(null);
   useEffect(() => {
-    if (typeof DeviceOrientationEvent === "undefined") return;
-    if (!window.matchMedia("(hover: none) and (pointer: coarse)").matches)
-      return;
-    let hasSignaledSupport = false;
-    const handleOrientation = (event: DeviceOrientationEvent) => {
-      const { gamma, beta } = event;
-      if (gamma == null || beta == null) return;
-      positionRef.current = {
-        x: clamp(gamma / 45, -1, 1),
-        y: clamp((beta - 45) / 45, -1, 1),
+    if (!isEnabled || typeof DeviceOrientationEvent === "undefined") return;
+    if (!isTouchOnlyDevice()) return;
+    let isActive = true;
+    const handleOrientation = ({ beta, gamma }: DeviceOrientationEvent) => {
+      if (beta === null || gamma === null) return;
+      const tilt = toScreenTilt(beta, gamma, screen.orientation?.angle ?? 0);
+      tiltRef.current = {
+        x: clampUnit(tilt.x / MAX_TILT_DEG),
+        y: clampUnit((tilt.y - NEUTRAL_PITCH_DEG) / MAX_TILT_DEG),
       };
-      if (!hasSignaledSupport) {
-        hasSignaledSupport = true;
-        setIsSupported(true);
-      }
     };
-    const requestPermission = (
-      DeviceOrientationEvent as unknown as {
-        requestPermission?: () => Promise<"granted" | "denied">;
-      }
-    ).requestPermission;
-    if (requestPermission) {
-      let active = true;
-      const handleTouch = () => {
-        void requestPermission()
-          .then((permission) => {
-            if (active && permission === "granted") {
-              window.addEventListener("deviceorientation", handleOrientation);
-            }
-          })
-          .catch(() => undefined);
-      };
-      window.addEventListener("touchstart", handleTouch, {
-        capture: true,
-        once: true,
-        passive: true,
-      });
-      return () => {
-        active = false;
-        window.removeEventListener("touchstart", handleTouch, {
-          capture: true,
-        });
-        window.removeEventListener("deviceorientation", handleOrientation);
-      };
+    const listenToOrientation = () =>
+      window.addEventListener("deviceorientation", handleOrientation);
+    const orientationEvent: PermissionedOrientationEvent =
+      DeviceOrientationEvent;
+    const handleTouchEnd = () => {
+      orientationEvent
+        .requestPermission?.()
+        .then((permission) => {
+          if (isActive && permission === "granted") listenToOrientation();
+        })
+        .catch(() => undefined);
+    };
+    if (orientationEvent.requestPermission) {
+      window.addEventListener("touchend", handleTouchEnd, { once: true });
+    } else {
+      listenToOrientation();
     }
-    window.addEventListener("deviceorientation", handleOrientation);
-    return () =>
+    return () => {
+      isActive = false;
+      window.removeEventListener("touchend", handleTouchEnd);
       window.removeEventListener("deviceorientation", handleOrientation);
-  }, []);
-  return { positionRef, isSupported };
+      tiltRef.current = null;
+    };
+  }, [isEnabled]);
+  return tiltRef;
 }
