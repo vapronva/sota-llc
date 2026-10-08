@@ -9,22 +9,45 @@ include:
   - component: $CI_SERVER_FQDN/ci/component/rules@1
   - component: $CI_SERVER_FQDN/ci/security/bundle@1
   - component: $CI_SERVER_FQDN/ci/typescript/lint-check@2
-  - component: $CI_SERVER_FQDN/ci/typescript/build@2
   - component: $CI_SERVER_FQDN/ci/docker/build-and-scan@4
     inputs:
       name: frontend
       image: frontend
       tags: latest,$CI_COMMIT_SHA
-      build_args: --secret id=NODE_ENV,type=env --secret id=SENTRY_AUTH_TOKEN,type=env
-  - component: $CI_SERVER_FQDN/ci/helmfile/deploy@1
+      scan_tag: $CI_COMMIT_SHA
+      build_args: --secret id=SENTRY_AUTH_TOKEN,type=env --build-arg SENTRY_RELEASE=$CI_COMMIT_SHA
+      rules_changes:
+        - "**/*"
+  - component: $CI_SERVER_FQDN/ci/helmfile/deploy@2
     inputs:
       working_dir: support/kubernetes
       helmfile_path: support/kubernetes/helmfile.yaml.gotmpl
 
-build frontend:
-  rules: !reference [.ci-rules-default-branch, rules]
-
 helmfile deploy:
+  resource_group: production
   environment:
     name: production
     url: https://sota.llc
+
+sentry release:
+  stage: deploy
+  image: $CI_REGISTRY/ci/on-alpine/node:latest
+  needs:
+    - job: helmfile deploy
+  variables:
+    GIT_STRATEGY: none
+    SENTRY_URL: https://sentry.cumlord.ru
+    SENTRY_ORG: cmld
+    SENTRY_REPOSITORY: Vladimir Malinovskiy / sota.llc
+  before_script:
+    - pkg-base-setup lang
+  script:
+    - |
+      PREVIOUS=$(curl -fsS -H "Authorization: Bearer $SENTRY_AUTH_TOKEN" "$SENTRY_URL/api/0/organizations/$SENTRY_ORG/releases/$CI_COMMIT_SHA/previous-with-commits/" | jq -r '.lastCommit.id // empty')
+      if [ "$PREVIOUS" != "$CI_COMMIT_SHA" ]; then
+        pnpm dlx sentry release set-commits "$CI_COMMIT_SHA" --commit "$SENTRY_REPOSITORY@${PREVIOUS:+$PREVIOUS..}$CI_COMMIT_SHA"
+      fi
+    - pnpm dlx sentry release deploy "$CI_COMMIT_SHA" production
+  rules: !reference
+    - .ci-rules-default-branch-or-tag
+    - rules

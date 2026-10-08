@@ -8,12 +8,14 @@ deployment:
       image:
         registry: docker.horse
         repository: vapronva/sota-llc/frontend
-        tag: latest
-        pullPolicy: Always
       ports:
         - name: http
           containerPort: 3000
           protocol: TCP
+      readinessProbe:
+        httpGet:
+          path: /favicon.ico
+          port: http
   affinity:
     nodeAffinity:
       preferredDuringSchedulingIgnoredDuringExecution:
@@ -34,22 +36,14 @@ services:
         targetPort: http
         protocol: TCP
 
-configMap:
-  - name: caddy-config
-    labels:
-      ckic.cmld.ru/aggregate: "true"
-    data:
-      Caddyfile: |
-        sota.llc:443 {
-          import basic-compression-set
-          import default-headers-set-custom
-          header * {
-            X-Robots-Tag "index, archive, nofollow"
-          }
-          handle_path /r/* {
-            redir https://cmld.ru/sota.llc{path} permanent
-          }
-          handle {
-            import reverse-proxy-xri-hd http://sotallc-frontend.sota-llc.svc.cluster.local:3000
-          }
+ckic:
+  enabled: true
+  sites:
+    - hosts:
+        - sota.llc
+      upstream: sotallc-frontend:3000
+      robotsTag: "index, archive, nofollow"
+      extraDirectives: |
+        handle_path /r/* {
+          redir https://cmld.ru/sota.llc{uri} permanent
         }
